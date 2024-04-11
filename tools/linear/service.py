@@ -12,6 +12,11 @@ class LinearClient:
         self.api_key = os.getenv('LINEAR_API_KEY')
         pass
 
+    def _query(self, query):
+        headers = {'Authorization': self.api_key}
+        response = requests.post(LINEAR_API_URL, json={'query': query}, headers=headers)
+        return response.json()
+
     def fetch_projects(self):
         query = '''
             query {
@@ -40,14 +45,7 @@ class LinearClient:
                 }
             }
         '''
-        headers = {'Authorization': self.api_key}
-        response = requests.post(LINEAR_API_URL, json={'query': query}, headers=headers)
-        json_response = response.json()
+        json_response = self._query(query).json()
         json_projects = json_response['data']['projects']['nodes']
         projects = [Project(**project) for project in json_projects]
-        print(projects)
         return projects
-
-client = LinearClient()
-
-client.fetch_projects()
