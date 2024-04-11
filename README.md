@@ -1,3 +1,3 @@
 # Project Manager
 
-Project assistant helps track, and stay on top of project updates. It's 
+Project Manager is your AI assistant to track, manage, and stay on top of Projects. It is deeply integrated with Linear today.
