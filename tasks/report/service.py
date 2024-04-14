@@ -46,6 +46,9 @@ highlight it in the report and share it with the team."
             reminders.append(Reminder(user=projects[0].lead, projects=projects))
         return reminders
 
+    def _generate_exec_summary(self, projects_with_updates: List[Project], projects_without_updates: List[Project]) -> str:
+        return "placeholder summary" # TODO: Implement this method
+
     def _generate_report(self) -> Report:
         current_projects = self._get_current_projects()
         projects_with_updates, projects_without_updates = [], []
