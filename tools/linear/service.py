@@ -1,8 +1,10 @@
 import os
 import requests
 import sys
+from typing import List
 sys.path.append(os.environ['PROJECT_PATH'])
 from models.linear import Project
+import json
 
 
 LINEAR_API_URL = "https://api.linear.app/graphql"
@@ -10,42 +12,60 @@ LINEAR_API_URL = "https://api.linear.app/graphql"
 class LinearClient:
     def __init__(self):
         self.api_key = os.getenv('LINEAR_API_KEY')
-        pass
 
-    def _query(self, query):
+    def _query(self, query, variables) -> dict:
         headers = {'Authorization': self.api_key}
-        response = requests.post(LINEAR_API_URL, json={'query': query}, headers=headers)
+        response = requests.post(LINEAR_API_URL, json={'query': query, 'variables': variables}, headers=headers)
         return response.json()
 
-    def fetch_projects(self):
+
+    def fetch_projects(self) -> List[Project]:
         query = '''
-            query {
-                projects {
+            query($after: String, $first: Int) {
+                projects(after: $after, first: $first) {
                     nodes {
                         id
                         name
                         description
                         state
                         targetDate
+                        progress
+                        url
                         projectUpdates {
                             nodes {
                                 id
                                 createdAt
                                 body
                                 url
+                                diffMarkdown
                                 user {
                                     name
                                     id
                                     email
                                 }
                             }
-                        
                         }
+                        lead {
+                            name
+                            id
+                            email
+                        }
+                    }
+                    pageInfo {
+                        hasNextPage
+                        endCursor
                     }
                 }
             }
         '''
-        json_response = self._query(query).json()
-        json_projects = json_response['data']['projects']['nodes']
-        projects = [Project(**project) for project in json_projects]
+        projects = []
+        has_next_page = True
+        cursor = None
+        while has_next_page:
+            variables = {'after': cursor, 'first': 50} if cursor else {}
+            json_response = self._query(query, variables)
+            json_projects = json_response['data']['projects']['nodes']
+            projects += [Project(**project) for project in json_projects]
+            has_next_page = json_response['data']['projects']['pageInfo']['hasNextPage']
+            cursor = json_response['data']['projects']['pageInfo']['endCursor']
         return projects
