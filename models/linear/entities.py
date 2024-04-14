@@ -17,11 +17,9 @@ class User(BaseModel):
 
 class ProjectMilestone(BaseModel):
     id: str
-    title: str
-    description: str
-    state: ProjectState
-    url: str
-    due_date: Optional[str] = Field(..., alias="dueDate")
+    name: str
+    description: Optional[str]
+    target_date: Optional[str] = Field(..., alias="targetDate")
     created_at: str = Field(..., alias="createdAt")
 
 class ProjectMilestonesNode(BaseModel):
@@ -41,11 +39,11 @@ class ProjectUpdatesNode(BaseModel):
 class Project(BaseModel):
     id: str
     name: str
-    description: str
-    target_date: Optional[str] = Field(..., alias="targetDate")
+    description: Optional[str]
+    target_date: Optional[str] = Field(None, alias="targetDate")
     state: ProjectState
-    project_updates: Optional[ProjectUpdatesNode]= Field(..., alias="projectUpdates")
-    progress: Optional[float]
-    url: str
-    lead: Optional[User]
-    # milestones: Optional[ProjectMilestonesNode] = Field(..., alias="projectMilestones")
+    project_updates: Optional[ProjectUpdatesNode]= Field(None, alias="projectUpdates")
+    progress: Optional[float] = None
+    url: Optional[str] = None
+    lead: Optional[User] = None
+    milestones: Optional[ProjectMilestonesNode] = Field(None, alias="projectMilestones")

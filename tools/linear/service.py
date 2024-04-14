@@ -18,8 +18,54 @@ class LinearClient:
         response = requests.post(LINEAR_API_URL, json={'query': query, 'variables': variables}, headers=headers)
         return response.json()
 
+    def fetch_project_by_id(self, id) -> Project:
+        query = '''
+            query($id: String!) {
+                project(id: $id) {
+                    id
+                    name
+                    description
+                    state
+                    targetDate
+                    progress
+                    url
+                    projectUpdates {
+                        nodes {
+                            id
+                            createdAt
+                            body
+                            url
+                            diffMarkdown
+                            user {
+                                name
+                                id
+                                email
+                            }
+                        }
+                    }
+                    projectMilestones {
+                        nodes {
+                            id
+                            name
+                            description
+                            targetDate
+                            createdAt
+                        }
+                    }
+                    lead {
+                        name
+                        id
+                        email
+                    }
+                }
+            }
+        '''
+        variables = {'id': id}
+        json_response = self._query(query, variables)
+        json_project = json_response['data']['project']
+        return Project(**json_project)
 
-    def fetch_projects(self) -> List[Project]:
+    def list_projects(self) -> List[Project]:
         query = '''
             query($after: String, $first: Int) {
                 projects(after: $after, first: $first) {
@@ -29,27 +75,6 @@ class LinearClient:
                         description
                         state
                         targetDate
-                        progress
-                        url
-                        projectUpdates {
-                            nodes {
-                                id
-                                createdAt
-                                body
-                                url
-                                diffMarkdown
-                                user {
-                                    name
-                                    id
-                                    email
-                                }
-                            }
-                        }
-                        lead {
-                            name
-                            id
-                            email
-                        }
                     }
                     pageInfo {
                         hasNextPage
@@ -62,7 +87,7 @@ class LinearClient:
         has_next_page = True
         cursor = None
         while has_next_page:
-            variables = {'after': cursor, 'first': 50} if cursor else {}
+            variables = {'after': cursor, 'first': 10} if cursor else {}
             json_response = self._query(query, variables)
             json_projects = json_response['data']['projects']['nodes']
             projects += [Project(**project) for project in json_projects]
