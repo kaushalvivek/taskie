@@ -18,7 +18,7 @@ class LinearClient:
         response = requests.post(LINEAR_API_URL, json={'query': query, 'variables': variables}, headers=headers)
         return response.json()
 
-    def fetch_project_by_id(self, id) -> Project:
+    def get_project_by_id(self, id) -> Project:
         query = '''
             query($id: String!) {
                 project(id: $id) {
