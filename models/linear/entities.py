@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from pydantic.fields import Field
 from typing import Optional
 from enum import Enum
+from .constants import EPD_TEAMS
 
 class ProjectState(str, Enum):
     PLANNED = "planned"
@@ -14,6 +15,14 @@ class User(BaseModel):
     id: str
     name: str
     email: str
+
+class Team(BaseModel):
+    id: str
+    name: str
+
+    # Check if team is related to engineering, product or design
+    def is_epd(self):
+        return self.name in EPD_TEAMS
 
 class ProjectMilestone(BaseModel):
     id: str
@@ -36,6 +45,9 @@ class ProjectUpdate(BaseModel):
 class ProjectUpdatesNode(BaseModel):
     nodes: list[ProjectUpdate]
 
+class TeamsNode(BaseModel):
+    nodes: list[Team]
+
 class Project(BaseModel):
     id: str
     name: str
@@ -47,3 +59,4 @@ class Project(BaseModel):
     url: Optional[str] = None
     lead: Optional[User] = None
     milestones: Optional[ProjectMilestonesNode] = Field(None, alias="projectMilestones")
+    teams: Optional[TeamsNode] = None

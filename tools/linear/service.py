@@ -29,6 +29,12 @@ class LinearClient:
                     targetDate
                     progress
                     url
+                    teams {
+                        nodes {
+                            id
+                            name
+                        }
+                    }
                     projectUpdates {
                         nodes {
                             id

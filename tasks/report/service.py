@@ -8,6 +8,7 @@ from tqdm import tqdm
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear.service import LinearClient
 from models.linear import ProjectState, Project
+from models.report import Reminder, Report
 from tools.decider import Decider
 
 class Reporter:
@@ -34,7 +35,18 @@ highlight it in the report and share it with the team."
         best_project_index = self.decider.get_best_option(context, options, criteria)
         return projects[best_project_index]
 
-    def _generate_report(self):
+    def _get_reminders(self, projects: List[Project]) -> List[Reminder]:
+        user_reminders = {}
+        for project in projects:
+            if project.lead.id not in user_reminders:
+                user_reminders[project.lead.id] = []
+            user_reminders[project.lead.id].append(project)
+        reminders = []
+        for _, projects in user_reminders.items():
+            reminders.append(Reminder(user=projects[0].lead, projects=projects))
+        return reminders
+
+    def _generate_report(self) -> Report:
         current_projects = self._get_current_projects()
         projects_with_updates, projects_without_updates = [], []
         for project in current_projects:
@@ -44,14 +56,20 @@ highlight it in the report and share it with the team."
                 projects_without_updates.append(project)
         best_updated_project = self._get_project_with_best_update(projects_with_updates)
         reminders = self._get_reminders(projects_without_updates)
-        # exec_summary = summary of all updates
+        exec_summary = self._generate_exec_summary(projects_with_updates, projects_without_updates)
+        return Report(reminders=reminders, best_updated_project=best_updated_project, exec_summary=exec_summary)
 
     def _get_current_projects(self) -> List[Project]:
         projects = self.linear.list_projects()
         projects = [project for project in projects if project.state in [ProjectState.PLANNED, ProjectState.STARTED]]
         current_projects = []
         for project in tqdm(projects):
-            current_projects.append(self.linear.get_project_by_id(project.id))
+            fetched_project = self.linear.get_project_by_id(project.id)
+            for team in fetched_project.teams.nodes:
+                if team.is_epd():
+                    current_projects.append(fetched_project)
+                    break
+            
         return current_projects
     
     def _send_report(self):

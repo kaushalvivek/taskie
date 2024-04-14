@@ -51,8 +51,6 @@ Options:
             ],
             temperature=0
         )
-        print(formatted_options)
-        print(response.choices[0].message.content)
         response_json = json.loads(response.choices[0].message.content)
         return response_json["best_option"]-1
 
