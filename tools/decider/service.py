@@ -5,7 +5,7 @@ import openai
 import json
 
 class Decider:
-    def __init__(self, model):
+    def __init__(self, model="gpt-3.5-turbo"):
         self.model = model
         pass
 
@@ -39,6 +39,7 @@ Options:
 
 ## Output
 {{
+    "chain_of_thought": (the chain of thought that led to the decision),
     "best_option": (index of the best option)
 }}
 '''
@@ -50,8 +51,10 @@ Options:
             ],
             temperature=0
         )
+        print(formatted_options)
+        print(response.choices[0].message.content)
         response_json = json.loads(response.choices[0].message.content)
-        return response_json["best_option"]    
+        return response_json["best_option"]-1
 
     # This method should return whether to proceed with an action or not, along with follow-ups if any
     def should_proceed(self):
