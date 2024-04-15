@@ -6,7 +6,7 @@ import os
 from typing import List
 from tqdm import tqdm
 sys.path.append(os.environ['PROJECT_PATH'])
-from tools.linear.service import LinearClient
+from tools.linear import LinearClient
 from models.linear import ProjectState, Project
 from models.report import Reminder, Report
 from tools.decider import Decider
