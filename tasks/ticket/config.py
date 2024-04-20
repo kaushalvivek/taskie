@@ -1,5 +1,5 @@
-CHANNELS = {
-    'C068Q94QT5F': {
-        'name': 'elly_playground'
-    }
-}
+CHANNELS = [
+    'C068Q94QT5F', # elly_playground
+    ]
+
+SLACK_ADMIN_USER_ID = 'U02KR9EEDA8'

@@ -3,24 +3,12 @@ from pydantic.fields import Field
 from typing import Optional
 from enum import Enum
 
-class ProjectState(str, Enum):
+class ProjectStates(str, Enum):
     PLANNED = "planned"
     STARTED = "started"
     COMPLETED = "completed"
     CANCELED = "canceled"
     BACKLOG = "backlog"
-
-class Teams(str, Enum):
-    ENGINEERING = "Engineering"
-    PRODUCT = "Product"
-    DESIGN = "Design"
-
-class TicketStatus(str, Enum):
-    TRIAGE = "triage"
-    TODO = "todo"
-    IN_PROGRESS = "in_progress"
-    RESOLVED = "resolved"
-    CLOSED = "closed"
 
 class User(BaseModel):
     id: str
@@ -33,8 +21,13 @@ class Team(BaseModel):
 
     # Check if team is related to engineering, product or design
     def is_epd(self):
-        return self.name in Teams.__members__.keys()
+        return self.name in ["Engineering", "Product", "Design"]
 
+class TicketState(BaseModel):
+    id: str
+    name: str
+    team: Team = Field(alias="team", default=None)
+    
 class ProjectMilestone(BaseModel):
     id: str
     name: str
@@ -64,7 +57,7 @@ class Project(BaseModel):
     name: str
     description: Optional[str]
     target_date: Optional[str] = Field(None, alias="targetDate")
-    state: ProjectState
+    state: ProjectStates
     project_updates: Optional[ProjectUpdatesNode]= Field(None, alias="projectUpdates")
     progress: Optional[float] = None
     url: Optional[str] = None
@@ -77,7 +70,8 @@ class Ticket(BaseModel):
     title: str = Field(alias="title", description="A brief, descriptive, title for the ticket")
     description: str = Field(alias="description", description="A detailed description of the issue, suggestion or improvement -- covering all reported details.")
     slack_message_url: str = Field(alias="slack_message_url", description="The URL to the Slack message that triggered the ticket creation")
-    team: Teams = Field(alias="team", description="The team responsible for the ticket")
+    team: Team = Field(alias="team", description="The team that will be responsible for the ticket", default=None)
     tags: list[str] = Field(alias="tags", description="A list of tags that help categorize the ticket", default=None)
-    status: TicketStatus = Field(alias="status", description="The status of the ticket", default=TicketStatus.TODO)
+    state: TicketState = Field(alias="state", description="The status of the ticket", default=None)
+    priority: int = Field(alias="priority", description="The priority of the ticket", default=0)
     

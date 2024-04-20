@@ -7,4 +7,5 @@ class Message(BaseModel):
     user_id: str = Field(alias="user")
     channel_id: str = Field(alias="channel")
     timestamp: float = Field(alias="ts")
+    is_reply: bool = Field(alias="is_thread_reply", default=False)
     

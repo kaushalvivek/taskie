@@ -5,6 +5,7 @@ import sys
 import os
 import logging
 import json
+import uuid
 from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
@@ -12,8 +13,8 @@ from tools.slack import SlackClient
 from tools.decider import Decider
 from tools.writer import Writer
 from models.slack import Message
-from models.linear import Ticket, Teams
-from .config import CHANNELS
+from models.linear import Ticket, Team, TicketState
+from .config import CHANNELS, SLACK_ADMIN_USER_ID
 
 
 BASE_CONTEXT = "We are creating a Linear ticket to take further action, \
@@ -27,13 +28,19 @@ class Ticketer:
         self.logger = logger
     
     def is_relevant(self, event: Message) -> bool:
-        return event.channel_id in CHANNELS.keys()
+        return event.channel_id in CHANNELS
     
     def trigger_ticket_creation(self, event: Message):
+        if event.is_reply:
+            # TODO: check if parent message has a ticket associated with it
+            # if no, then consider this ticket for ticket creation
+            return
         if not self._is_ticket_worthy(event):
             return
         ticket = self._parse_ticket(event)
-        # self.linear.create_ticket(ticket)
+        rprint(ticket)
+        self.linear.create_ticket(ticket)
+        self.linear.attach_slack_message_to_ticket(ticket)
         
     def _is_ticket_worthy(self, event: Message) -> bool:
         channel = self.slack.get_channel_by_id(event.channel_id)
@@ -57,25 +64,37 @@ class Ticketer:
         )
         self.logger.debug(f"Decision: {decision}, Follow-up: {follow_up}")  
         if not decision and follow_up:
-            self._ask_follow_up(self, event, follow_up)
+            self._ask_follow_up(event, follow_up)
         return decision
 
     def _parse_ticket(self, event: Message) -> Ticket:
+        slack_url = f"https://slack.com/archives/{event.channel_id}/p{event.timestamp}"
         ticket = Ticket(
-            title = self.writer.summarize(context= f"{BASE_CONTEXT} You must come up with a great title.", word_limit=10, input=event.text),
-            description = event.text,
-            slack_message_url = f"https://slack.com/archives/{event.channel_id}/p{event.timestamp}",
+            id= str(uuid.uuid4()),
+            title = self.writer.summarize(context= f"{BASE_CONTEXT} You must come up with a great title. DO NOT use the word title.", word_limit=10, input=event.text),
+            description = event.text+ f"\n\n[Slack message]({slack_url})",
+            slack_message_url = slack_url,
             team = self._get_team(event),
         )
+        ticket.state = self._get_ticket_state(event, ticket.team)
         self.logger.debug(f"Ticket: {ticket.model_dump()}")
         self.slack.reply_in_thread(event.channel_id, f"ticket: {json.dumps(ticket.model_dump(), indent=4)}", event.timestamp)
         return ticket
 
-    def _get_team(self, event: Message) -> Teams:
-        team = self.decider.get_best_option(context= f"{BASE_CONTEXT} You must decide the best team pick the ticket up, and execute on it. Slack message: {event.text}", 
-                                                options=Teams.__members__.keys(), criteria=["The team must be the best equipped to act on the next steps for the ticket"])
-        print(f"Team: {team}")
-        return Teams.ENGINEERING
-    
+    def _get_team(self, event: Message) -> Team:
+        teams = self.linear.list_teams()
+        team_names = [team.name for team in teams]
+        team_idx = self.decider.get_best_option(context= f"{BASE_CONTEXT} You must decide the best team pick the ticket up, and execute on it. Slack message: {event.text}", 
+                                                options=team_names, criteria=["The team must be the best equipped to act on the next steps for the ticket"])
+        return teams[team_idx]
+
+    def _get_ticket_state(self, event: Message, team: Team) -> TicketState:
+        team_states = self.linear.list_states_for_team(team)
+        state_names = [state.name for state in team_states]
+        state_idx = self.decider.get_best_option(context= f"{BASE_CONTEXT} You must choose the TODO state, so that the team can act on the ticket. Slack message: {event.text}", 
+                                                options=state_names, criteria=["Figure out the TODO state from the available states."])
+        return team_states[state_idx]
+
     def _ask_follow_up(self, event: Message, follow_up: str) -> bool:
-        self.slack.reply_in_thread(event.channel_id, follow_up, event.timestamp)
+        tagged_follow_up = f"{follow_up}\n\ncc: <@{SLACK_ADMIN_USER_ID}>\n\nPS: I can't create tickets from replies today, I'll be smarter soon!"
+        self.slack.reply_in_thread(event.channel_id, tagged_follow_up, event.timestamp)

@@ -2,8 +2,9 @@ import os
 import requests
 import sys
 from typing import List
+from rich import print as rprint 
 sys.path.append(os.environ['PROJECT_PATH'])
-from models.linear import Project
+from models.linear import Project, Ticket, TicketState, Team
 import json
 
 
@@ -100,3 +101,97 @@ class LinearClient:
             has_next_page = json_response['data']['projects']['pageInfo']['hasNextPage']
             cursor = json_response['data']['projects']['pageInfo']['endCursor']
         return projects
+    
+    def list_teams(self) -> list[Team]:
+        query = """
+            query {
+                teams {
+                    nodes {
+                        id
+                        name
+                    }
+                }
+            }
+            """
+        json_response = self._query(query, {})
+        response = json_response['data']['teams']['nodes']
+        teams = [Team(**team) for team in response]
+        return teams
+    
+    def list_states_for_team(self, team: Team) -> list[TicketState]:
+        query = """
+            query ($filter: WorkflowStateFilter!){
+                workflowStates(filter: $filter) {
+                    nodes {
+                        id
+                        name
+                        team {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+            """
+        variables = {
+            "filter": {
+                "team": {
+                    "id": {
+                        'eq': team.id
+                    }
+                }
+            }
+        }
+        json_response = self._query(query, variables)
+        states = json_response['data']['workflowStates']['nodes']
+        ticket_states = [TicketState(**state) for state in states]
+        team_states = [state for state in ticket_states if state.team.id == team.id]
+        return team_states
+    
+    def create_ticket(self, ticket: Ticket):
+        query = '''
+            mutation($input: IssueCreateInput!) {
+                issueCreate(input: $input) {
+                    issue {
+                        id
+                        title
+                        description
+                        state {
+                            name
+                        }
+                        priority
+                        labelIds
+                        team {
+                            id
+                        }
+                    }
+                }
+            }
+        '''
+        variables = {
+            'input': {
+                'id': ticket.id,
+                'title': ticket.title,
+                'description': ticket.description,
+                'priority': ticket.priority,
+                # 'labelIds': ['bug'],
+                'stateId': ticket.state.id,
+                'teamId': ticket.team.id
+            }
+        }
+        return self._query(query, variables)
+    
+    def attach_slack_message_to_ticket(self, ticket: Ticket):
+        query = '''
+            mutation($issueId: String!, $url: String!) {
+                attachmentLinkSlack(issueId: $issueId, url: $url) {
+                    success
+                }
+            }
+        '''
+        variables = {
+            'issueId': ticket.id,
+            'url': ticket.slack_message_url,
+        }
+        return self._query(query, variables)
+        

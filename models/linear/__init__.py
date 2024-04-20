@@ -1,1 +1,1 @@
-from .entities import Project, ProjectState, User, Ticket, Teams
+from .entities import Project, ProjectStates, User, Ticket, TicketState, Team

@@ -8,7 +8,7 @@ from tqdm import tqdm
 from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
-from models.linear import ProjectState, Project
+from models.linear import ProjectStates, Project
 from models.report import Reminder, Report
 from tools.decider import Decider
 
@@ -67,7 +67,7 @@ highlight it in the report and share it with the team."
 
     def _get_current_projects(self) -> List[Project]:
         projects = self.linear.list_projects()
-        projects = [project for project in projects if project.state in [ProjectState.PLANNED, ProjectState.STARTED]]
+        projects = [project for project in projects if project.state in [ProjectStates.PLANNED, ProjectStates.STARTED]]
         current_projects = []
         for project in tqdm(projects):
             fetched_project = self.linear.get_project_by_id(project.id)
