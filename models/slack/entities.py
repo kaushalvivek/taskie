@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from pydantic.fields import Field
 
 class Message(BaseModel):
-    id: str = Field(alias="client_msg_id")
+    id: str = Field(alias="client_msg_id", default=None)
     text: str = Field(alias="text")
     user_id: str = Field(alias="user")
     channel_id: str = Field(alias="channel")

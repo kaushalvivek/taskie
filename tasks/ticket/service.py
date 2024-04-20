@@ -10,6 +10,7 @@ from tools.slack import SlackClient
 from tools.decider import Decider
 from models.slack import Message
 from .config import CHANNELS
+
 class Ticketer:
     def __init__(self):
         self.linear = LinearClient()
@@ -22,6 +23,7 @@ class Ticketer:
     def trigger_ticket_creation(self, event: Message):
         if not self._is_ticket_worthy(event):
             return
+        self.slack.reply_in_thread(event.channel_id, "Okay, I'll create a ticket for this.", event.timestamp)
         
     def _is_ticket_worthy(self, event: Message) -> bool:
         channel = self.slack.get_channel_by_id(event.channel_id)
@@ -42,12 +44,15 @@ class Ticketer:
                 "The message REQUIRES further action, and isn't an FYI on an action already taken",
                 "The message is not a general announcement or a social message",
             ]
-        )        
-        print(decision,follow_up)
+        )
+        rprint(f"Decision: {decision}, Follow-up: {follow_up}")        
+        if not decision and follow_up:
+            self._ask_follow_up(self, event, follow_up)
         return decision
 
-    def clarify(self, project_id: str, title: str, description: str) -> bool:
-        pass
+    def _ask_follow_up(self, event: Message, follow_up: str) -> bool:
+        self.slack.reply_in_thread(event.channel_id, follow_up, event.timestamp)
+        
 
     def create_ticket(self, project_id: str, title: str, description: str):
         pass

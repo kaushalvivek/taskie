@@ -94,12 +94,15 @@ with the given action by carefully considering the provided context, and the dec
             system_instruction += f'''\n\n# Examples
 {formatted_examples}
 '''
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": input}]
+        # rprint(messages)
         response = openai.chat.completions.create(
             model = self.model,
-            messages = [
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": input}],
+            messages = messages,
             temperature=0
         )
+        # rprint(response)
         response_json = json.loads(response.choices[0].message.content)
         return response_json["can_proceed"], response_json.get("follow_ups", None)
