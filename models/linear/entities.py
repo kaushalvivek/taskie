@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from pydantic.fields import Field
 from typing import Optional
 from enum import Enum
-from .constants import EPD_TEAMS
 
 class ProjectState(str, Enum):
     PLANNED = "planned"
@@ -10,6 +9,11 @@ class ProjectState(str, Enum):
     COMPLETED = "completed"
     CANCELED = "canceled"
     BACKLOG = "backlog"
+
+class Teams(str, Enum):
+    ENGINEERING = "Engineering"
+    PRODUCT = "Product"
+    DESIGN = "Design"
 
 class User(BaseModel):
     id: str
@@ -22,7 +26,7 @@ class Team(BaseModel):
 
     # Check if team is related to engineering, product or design
     def is_epd(self):
-        return self.name in EPD_TEAMS
+        return self.name in Teams.__members__.keys()
 
 class ProjectMilestone(BaseModel):
     id: str
@@ -60,3 +64,12 @@ class Project(BaseModel):
     lead: Optional[User] = None
     milestones: Optional[ProjectMilestonesNode] = Field(None, alias="projectMilestones")
     teams: Optional[TeamsNode] = None
+    
+class Ticket(BaseModel):
+    id: str = Field(None, alias="id")
+    title: str = Field(alias="title", description="A brief, descriptive, title for the ticket")
+    description: str = Field(alias="description", description="A detailed description of the issue, suggestion or improvement -- covering all reported details.")
+    slack_message_id: str = Field(alias="slackMessageId", description="The Slack message ID that triggered the ticket creation")
+    team: Teams = Field(alias="team", description="The team responsible for the ticket")
+    tags: list[str] = Field(alias="tags", description="A list of tags that help categorize the ticket")
+    
