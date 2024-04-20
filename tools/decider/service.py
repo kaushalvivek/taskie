@@ -55,5 +55,46 @@ Options:
         return response_json["best_option"]-1
 
     # This method should return whether to proceed with an action or not, along with follow-ups if any
-    def should_proceed(self):
-        pass
+    def can_proceed(self, context: str, action: str, input: str, criteria: list[str]):
+        formatted_criteria = "\n".join([f"{i+1}. {criterion}" for i, criterion in enumerate(criteria)])
+        system_instruction = f'''
+# Mission
+You are an expert at deciding whether to proceed with an action or not. Your mission is to determine whether to proceed \
+with the given action by carefully considering the provided context, and the decision criteria.
+
+# Context
+{context}
+
+# Action
+{action}
+
+# Decision Criteria (sorted by importance)
+{formatted_criteria}
+
+# Instructions
+1. Think carefully from first principles and decide whether to proceed with the given action or not.
+2. If you feel that the provided context is insufficient, ask for more information. ONLY DO THIS IF NECESSARY.
+2. You MUST respond in the given output format.
+3. Your response MUST be a valid JSON.
+
+# Format
+
+## Input
+(information provided by the user to make the decision on)
+
+## Output
+{{
+    "can_proceed": true/false (whether to proceed with the action or not),
+    "follow_ups": (any a follow-up question if necessary) -- OPTIONAL, ONLY IF can_proceed is false and more information is needed
+}}
+'''
+        response = openai.chat.completions.create(
+            model = self.model,
+            messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": f"Input: {input}"}
+            ],
+            temperature=0
+        )
+        response_json = json.loads(response.choices[0].message.content)
+        return response_json["can_proceed"], response_json.get("follow_ups", None)
