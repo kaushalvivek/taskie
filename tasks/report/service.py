@@ -5,6 +5,7 @@ import sys
 import os
 from typing import List
 from tqdm import tqdm
+from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
 from models.linear import ProjectState, Project
@@ -17,7 +18,8 @@ class Reporter:
         self.decider = Decider()
     
     def trigger_report(self):
-        self._generate_report()
+        report = self._generate_report()
+        rprint(report)
 
     def _get_project_with_best_update(self, projects: List[Project]) -> Project:
         context = "Project leads for different projects have provided an update on the status and progress of \
@@ -46,8 +48,9 @@ highlight it in the report and share it with the team."
             reminders.append(Reminder(user=projects[0].lead, projects=projects))
         return reminders
 
-    def _generate_exec_summary(self, projects_with_updates: List[Project], projects_without_updates: List[Project]) -> str:
-        return "placeholder summary" # TODO: Implement this method
+    def _get_executive_summary(self, projects_with_updates: List[Project], projects_without_updates: List[Project]) -> str:
+        return f"Projects with updates: {len(projects_with_updates)},\
+              Projects without updates: {len(projects_without_updates)}"
 
     def _generate_report(self) -> Report:
         current_projects = self._get_current_projects()
@@ -59,7 +62,7 @@ highlight it in the report and share it with the team."
                 projects_without_updates.append(project)
         best_updated_project = self._get_project_with_best_update(projects_with_updates)
         reminders = self._get_reminders(projects_without_updates)
-        exec_summary = self._generate_exec_summary(projects_with_updates, projects_without_updates)
+        exec_summary = self._get_executive_summary(projects_with_updates, projects_without_updates)
         return Report(reminders=reminders, best_updated_project=best_updated_project, exec_summary=exec_summary)
 
     def _get_current_projects(self) -> List[Project]:

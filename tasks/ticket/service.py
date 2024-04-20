@@ -13,7 +13,7 @@ class Ticketer:
     def should_create_ticket(self, project_id: str, title: str, description: str) -> bool:
         pass
 
-    def ask_for_approval(self, project_id: str, title: str, description: str) -> bool:
+    def clarity(self, project_id: str, title: str, description: str) -> bool:
         pass
 
     def create_ticket(self, project_id: str, title: str, description: str):
