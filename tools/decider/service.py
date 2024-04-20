@@ -3,10 +3,12 @@ Decider is an intelligent servie. It exposes methods to help make the best choic
 '''
 import openai
 import json
+import logging
 from rich import print as rprint
 class Decider:
-    def __init__(self, model="gpt-4-turbo"):
+    def __init__(self, model="gpt-4-turbo", logger=logging.getLogger(__name__)):
         self.model = model
+        self.logger = logger
         pass
 
     # This method should return the best option provided the decision criteria and the options
@@ -97,10 +99,12 @@ with the given action by carefully considering the provided context, and the dec
         messages = [
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": input}]
+        self.logger.debug(f"Messages: {messages}")
         response = openai.chat.completions.create(
             model = self.model,
             messages = messages,
             temperature=0
         )
+        self.logger.debug(f"Response: {response}")
         response_json = json.loads(response.choices[0].message.content)
         return response_json["can_proceed"], response_json.get("follow_ups", None)

@@ -15,6 +15,13 @@ class Teams(str, Enum):
     PRODUCT = "Product"
     DESIGN = "Design"
 
+class TicketStatus(str, Enum):
+    TRIAGE = "triage"
+    TODO = "todo"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
 class User(BaseModel):
     id: str
     name: str
@@ -69,7 +76,8 @@ class Ticket(BaseModel):
     id: str = Field(None, alias="id")
     title: str = Field(alias="title", description="A brief, descriptive, title for the ticket")
     description: str = Field(alias="description", description="A detailed description of the issue, suggestion or improvement -- covering all reported details.")
-    slack_message_id: str = Field(alias="slackMessageId", description="The Slack message ID that triggered the ticket creation")
+    slack_message_url: str = Field(alias="slack_message_url", description="The URL to the Slack message that triggered the ticket creation")
     team: Teams = Field(alias="team", description="The team responsible for the ticket")
-    tags: list[str] = Field(alias="tags", description="A list of tags that help categorize the ticket")
+    tags: list[str] = Field(alias="tags", description="A list of tags that help categorize the ticket", default=None)
+    status: TicketStatus = Field(alias="status", description="The status of the ticket", default=TicketStatus.TODO)
     
