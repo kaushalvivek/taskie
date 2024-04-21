@@ -163,9 +163,9 @@ class LinearClient:
         '''
         variables = {'id': id}
         json_response = self._query(query, variables)
+        self.logger.debug(f"Get ticket by ID response: {json_response}")
         json_ticket = json_response['data']['issue']
         ticket= Ticket(**json_ticket)
-        self.logger.debug(f"Fetched ticket: {ticket.model_dump_json()}")
         return ticket
     
     def create_ticket(self, ticket: Ticket):

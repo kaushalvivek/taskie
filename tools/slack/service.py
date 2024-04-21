@@ -1,5 +1,6 @@
 import os
 import sys
+from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from models.slack import Message
 from slack_sdk import WebClient
@@ -25,3 +26,16 @@ class SlackClient:
         if response["ok"]:
             return response["permalink"]
         return None
+    
+    def get_message_from_permalink(self, permalink: str) -> Message:
+        channel_id, message_ts_str = permalink.split("/")[-2:]
+        message_ts_str = message_ts_str[1:]
+        message_ts_seconds = message_ts_str[:10]
+        message_ts_fraction = message_ts_str[10:]
+        message_ts = float(f"{message_ts_seconds}.{message_ts_fraction}")
+        response = self.client.conversations_history(channel=channel_id, latest=str(message_ts), inclusive=True, limit=1)
+        if response["ok"]:
+            message = response["messages"][0]
+            message= Message.get_message_from_event(message)
+            message.channel_id = channel_id # set channel_id as it is not present in the response
+        return message

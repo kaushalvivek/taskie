@@ -39,7 +39,7 @@ class Ticketer:
         ticket = self._parse_ticket(event)
         self.linear.create_ticket(ticket)
         self.linear.attach_slack_message_to_ticket(ticket)
-        ticket.url = self.linear.get_ticket_by_id(ticket).url
+        ticket.url = self.linear.get_ticket_by_id(ticket.id).url
         self.slack.reply_in_thread(event.channel_id, f"Ticket created: {ticket.url}\n\ncc <@{SLACK_ADMIN_USER_ID}>", event.timestamp)
         
     def _is_ticket_worthy(self, event: Message) -> bool:

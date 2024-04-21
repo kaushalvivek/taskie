@@ -10,7 +10,7 @@ app = slack_bolt.App(
     token=os.environ["SLACK_BOT_TOKEN"],
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"))
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ticketer = Ticketer(logger=logger)
@@ -27,21 +27,11 @@ def handle_message_events(body):
         return
     
     event = body["event"]
-    message = get_message_from_event(event)
+    message = Message.get_message_from_event(event)
     if ticketer.is_relevant(message):
         logger.info("Message is relevant")
         ticketer.trigger_ticket_creation(message)
     return
-
-def get_message_from_event(event: dict) -> Message:
-    message = Message(**event)
-    if "thread_ts" in event.keys():
-        message.is_reply = True
-    if "attachments" in event.keys():
-        for attachment in event['attachments']:
-            message.text += f'\n\nattached message:\n{attachment["text"]}'
-    logger.debug(f"Message: {message}")
-    return message
 
 if __name__ == "__main__":
     app.start(port=int(os.environ.get("PORT", 3000)))
