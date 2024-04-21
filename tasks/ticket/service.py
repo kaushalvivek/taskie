@@ -13,7 +13,7 @@ from tools.slack import SlackClient
 from tools.decider import Decider
 from tools.writer import Writer
 from models.slack import Message
-from models.linear import Ticket, Team, TicketState
+from models.linear import Ticket, Team, TicketState, TicketLabel
 from models.ticket import TicketerConfig
 
 
@@ -81,7 +81,7 @@ class Ticketer:
             team = self._get_team(event),
         )
         ticket.state = self._get_ticket_state(event, ticket.team)
-        ticket.tags = self._get_ticket_tags(event, ticket.team)
+        ticket.labels = self._get_ticket_labels(event, ticket.team)
         self.logger.debug(f"Ticket: {ticket.model_dump()}")
         return ticket
 
@@ -99,8 +99,9 @@ class Ticketer:
                                                 options=state_names, criteria=["Figure out the TODO state from the available states."])
         return team_states[state_idx]
 
-    def _get_ticket_tags(self, event: Message, team: Team) -> list[str]:
-        channel_tags = self._get_mandatory_channel_tags(event)
+    def _get_ticket_labels(self, event: Message, team: Team) -> list[TicketLabel]:
+        # TODO: Implement this method
+        pass
         
 
     def _ask_follow_up(self, event: Message, follow_up: str) -> bool:

@@ -149,6 +149,31 @@ class LinearClient:
         team_states = [state for state in ticket_states if state.team.id == team.id]
         return team_states
     
+    def list_labels_for_team(self, team: Team) -> list[str]:
+        query = """
+            query ($filter: LabelFilter!){
+                labels(filter: $filter) {
+                    nodes {
+                        id
+                        name
+                    }
+                }
+            }
+            """
+        variables = {
+            "filter": {
+                "team": {
+                    "id": {
+                        'eq': team.id
+                    }
+                }
+            }
+        }
+        json_response = self._query(query, variables)
+        labels = json_response['data']['labels']['nodes']
+        label_names = [label['name'] for label in labels]
+        return label_names
+    
     def get_ticket_by_id(self, id: str) -> Ticket:
         self.logger.debug(f"Getting ticket by id: {id}")
         query = '''
