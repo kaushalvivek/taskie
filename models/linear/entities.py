@@ -69,9 +69,10 @@ class Ticket(BaseModel):
     id: str = Field(None, alias="id")
     title: str = Field(alias="title", description="A brief, descriptive, title for the ticket")
     description: str = Field(alias="description", description="A detailed description of the issue, suggestion or improvement -- covering all reported details.")
-    slack_message_url: str = Field(alias="slack_message_url", description="The URL to the Slack message that triggered the ticket creation")
+    slack_message_url: str = Field(alias="slack_message_url", description="The URL to the Slack message that triggered the ticket creation", default=None)
     team: Team = Field(alias="team", description="The team that will be responsible for the ticket", default=None)
     tags: list[str] = Field(alias="tags", description="A list of tags that help categorize the ticket", default=None)
     state: TicketState = Field(alias="state", description="The status of the ticket", default=None)
     priority: int = Field(alias="priority", description="The priority of the ticket", default=0)
+    url: Optional[str] = Field(alias="url", description="The URL to the Linear ticket, if created", default=None)
     

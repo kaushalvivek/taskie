@@ -3,9 +3,9 @@ The reporter service is responsible for generating the project report.
 '''
 import sys
 import os
+import logging
 from typing import List
 from tqdm import tqdm
-from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
 from models.linear import ProjectStates, Project
@@ -13,13 +13,13 @@ from models.report import Reminder, Report
 from tools.decider import Decider
 
 class Reporter:
-    def __init__(self):
-        self.linear = LinearClient()
+    def __init__(self, logger=logging.getLogger(__name__)):
+        self.linear = LinearClient(logger)
         self.decider = Decider()
     
     def trigger_report(self):
         report = self._generate_report()
-        rprint(report)
+        self.logger.debug(f"Report: {report.model_dump_json()}")
 
     def _get_project_with_best_update(self, projects: List[Project]) -> Project:
         context = "Project leads for different projects have provided an update on the status and progress of \

@@ -1,8 +1,8 @@
 import os
 import requests
 import sys
+import logging
 from typing import List
-from rich import print as rprint 
 sys.path.append(os.environ['PROJECT_PATH'])
 from models.linear import Project, Ticket, TicketState, Team
 import json
@@ -11,8 +11,9 @@ import json
 LINEAR_API_URL = "https://api.linear.app/graphql"
 
 class LinearClient:
-    def __init__(self):
+    def __init__(self, logger=logging.getLogger(__name__)):
         self.api_key = os.getenv('LINEAR_API_KEY')
+        self.logger = logger
 
     def _query(self, query, variables) -> dict:
         headers = {'Authorization': self.api_key}
@@ -148,7 +149,27 @@ class LinearClient:
         team_states = [state for state in ticket_states if state.team.id == team.id]
         return team_states
     
+    def get_ticket_by_id(self, id: str) -> Ticket:
+        self.logger.debug(f"Getting ticket by id: {id}")
+        query = '''
+            query($id: String!) {
+                issue(id: $id) {
+                    id
+                    title
+                    description
+                    url
+                }
+            }
+        '''
+        variables = {'id': id}
+        json_response = self._query(query, variables)
+        json_ticket = json_response['data']['issue']
+        ticket= Ticket(**json_ticket)
+        self.logger.debug(f"Fetched ticket: {ticket.model_dump_json()}")
+        return ticket
+    
     def create_ticket(self, ticket: Ticket):
+        self.logger.debug(f"Creating ticket: {ticket.model_dump_json()}")
         query = '''
             mutation($input: IssueCreateInput!) {
                 issueCreate(input: $input) {
@@ -179,9 +200,12 @@ class LinearClient:
                 'teamId': ticket.team.id
             }
         }
-        return self._query(query, variables)
+        response = self._query(query, variables)
+        self.logger.debug(response)
+        return
     
     def attach_slack_message_to_ticket(self, ticket: Ticket):
+        self.logger.debug(f"Attaching Slack message to ticket: {ticket.model_dump_json()}")
         query = '''
             mutation($issueId: String!, $url: String!) {
                 attachmentLinkSlack(issueId: $issueId, url: $url) {
@@ -193,5 +217,6 @@ class LinearClient:
             'issueId': ticket.id,
             'url': ticket.slack_message_url,
         }
-        return self._query(query, variables)
-        
+        response = self._query(query, variables)
+        self.logger.debug(response)
+        return

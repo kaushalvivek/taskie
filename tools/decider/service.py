@@ -4,7 +4,6 @@ Decider is an intelligent servie. It exposes methods to help make the best choic
 import openai
 import json
 import logging
-from rich import print as rprint
 class Decider:
     def __init__(self, model="gpt-4-turbo", logger=logging.getLogger(__name__)):
         self.model = model

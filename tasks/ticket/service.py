@@ -6,7 +6,6 @@ import os
 import logging
 import json
 import uuid
-from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
 from tools.slack import SlackClient
@@ -21,7 +20,7 @@ BASE_CONTEXT = "We are creating a Linear ticket to take further action, \
 based on the shared Slack message. You'd be shared the content of the Slack message."
 class Ticketer:
     def __init__(self, logger=logging.getLogger(__name__)):
-        self.linear = LinearClient()
+        self.linear = LinearClient(logger)
         self.decider = Decider(model="gpt-4-turbo", logger=logger)
         self.writer = Writer(logger=logger)
         self.slack = SlackClient()
@@ -38,9 +37,10 @@ class Ticketer:
         if not self._is_ticket_worthy(event):
             return
         ticket = self._parse_ticket(event)
-        rprint(ticket)
         self.linear.create_ticket(ticket)
         self.linear.attach_slack_message_to_ticket(ticket)
+        ticket.url = self.linear.get_ticket_by_id(ticket).url
+        self.slack.reply_in_thread(event.channel_id, f"Ticket created: {ticket.url}\n\ncc <@{SLACK_ADMIN_USER_ID}>", event.timestamp)
         
     def _is_ticket_worthy(self, event: Message) -> bool:
         channel = self.slack.get_channel_by_id(event.channel_id)
@@ -68,17 +68,16 @@ class Ticketer:
         return decision
 
     def _parse_ticket(self, event: Message) -> Ticket:
-        slack_url = f"https://slack.com/archives/{event.channel_id}/p{event.timestamp}"
+        self.logger.debug(f"Event: {event.model_dump_json()}")
         ticket = Ticket(
             id= str(uuid.uuid4()),
             title = self.writer.summarize(context= f"{BASE_CONTEXT} You must come up with a great title. DO NOT use the word title.", word_limit=10, input=event.text),
-            description = event.text+ f"\n\n[Slack message]({slack_url})",
-            slack_message_url = slack_url,
+            description = event.text,
+            slack_message_url = self.slack.get_permalink_for_message(event),
             team = self._get_team(event),
         )
         ticket.state = self._get_ticket_state(event, ticket.team)
         self.logger.debug(f"Ticket: {ticket.model_dump()}")
-        self.slack.reply_in_thread(event.channel_id, f"ticket: {json.dumps(ticket.model_dump(), indent=4)}", event.timestamp)
         return ticket
 
     def _get_team(self, event: Message) -> Team:
