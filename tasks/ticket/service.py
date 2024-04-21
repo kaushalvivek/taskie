@@ -4,8 +4,9 @@ This module exposes the Ticketer service, capable of creating tickets in Linear,
 import sys
 import os
 import logging
-import json
+import yaml
 import uuid
+from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
 from tools.slack import SlackClient
@@ -13,7 +14,7 @@ from tools.decider import Decider
 from tools.writer import Writer
 from models.slack import Message
 from models.linear import Ticket, Team, TicketState
-from .config import CHANNELS, SLACK_ADMIN_USER_ID
+from models.ticket import TicketerConfig
 
 
 BASE_CONTEXT = "We are creating a Linear ticket to take further action, \
@@ -25,9 +26,12 @@ class Ticketer:
         self.writer = Writer(logger=logger)
         self.slack = SlackClient()
         self.logger = logger
+        with open(f"{os.environ['PROJECT_PATH']}/config/ticket_config.yaml", 'r') as file:
+            config_data = yaml.safe_load(file)
+        self.config = TicketerConfig(**config_data)
     
     def is_relevant(self, event: Message) -> bool:
-        return event.channel_id in CHANNELS
+        return event.channel_id in self.config.slack_channel_configs
     
     def trigger_ticket_creation(self, event: Message):
         if event.is_reply:
@@ -40,7 +44,7 @@ class Ticketer:
         self.linear.create_ticket(ticket)
         self.linear.attach_slack_message_to_ticket(ticket)
         ticket.url = self.linear.get_ticket_by_id(ticket.id).url
-        self.slack.reply_in_thread(event.channel_id, f"Ticket created: {ticket.url}\n\ncc <@{SLACK_ADMIN_USER_ID}>", event.timestamp)
+        self.slack.reply_in_thread(event.channel_id, f"Ticket created: {ticket.url}\n\ncc <@{self.config.slack_admin_user_id}>", event.timestamp)
         
     def _is_ticket_worthy(self, event: Message) -> bool:
         channel = self.slack.get_channel_by_id(event.channel_id)
@@ -77,6 +81,7 @@ class Ticketer:
             team = self._get_team(event),
         )
         ticket.state = self._get_ticket_state(event, ticket.team)
+        ticket.tags = self._get_ticket_tags(event, ticket.team)
         self.logger.debug(f"Ticket: {ticket.model_dump()}")
         return ticket
 
@@ -94,6 +99,10 @@ class Ticketer:
                                                 options=state_names, criteria=["Figure out the TODO state from the available states."])
         return team_states[state_idx]
 
+    def _get_ticket_tags(self, event: Message, team: Team) -> list[str]:
+        channel_tags = self._get_mandatory_channel_tags(event)
+        
+
     def _ask_follow_up(self, event: Message, follow_up: str) -> bool:
-        tagged_follow_up = f"{follow_up}\n\ncc: <@{SLACK_ADMIN_USER_ID}>\n\nPS: I can't create tickets from replies today, I'll be smarter soon!"
+        tagged_follow_up = f"{follow_up}\n\ncc: <@{self.config.slack_admin_user_id}>\n\nPS: I can't create tickets from replies today, I'll be smarter soon!"
         self.slack.reply_in_thread(event.channel_id, tagged_follow_up, event.timestamp)
