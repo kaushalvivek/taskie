@@ -23,7 +23,7 @@ class Ticketer:
     def __init__(self, logger=logging.getLogger(__name__)):
         self.linear = LinearClient(logger)
         self.decider = Decider(model="gpt-4-turbo", logger=logger)
-        self.writer = Writer(logger=logger)
+        self.writer = Writer(model="gpt-4-turbo", logger=logger)
         self.slack = SlackClient()
         self.logger = logger
         with open(f"{os.environ['PROJECT_PATH']}/config/ticket_config.yaml", 'r') as file:
@@ -31,12 +31,14 @@ class Ticketer:
         self.config = TicketerConfig(**config_data)
     
     def is_relevant(self, event: Message) -> bool:
-        return event.channel_id in self.config.slack_channel_configs
+        return event.channel_id in [config.channel_id for config in self.config.slack_channel_configs]
     
     def trigger_ticket_creation(self, event: Message):
+        print(f"Event: {event.model_dump_json()}")
         if event.is_reply:
             # TODO: check if parent message has a ticket associated with it
             # if no, then consider this ticket for ticket creation
+            # BUG: this logic is faulty. `is reply` is true for all messages in a thread, including the parent message
             return
         if not self._is_ticket_worthy(event):
             return
@@ -81,7 +83,7 @@ class Ticketer:
             team = self._get_team(event),
         )
         ticket.state = self._get_ticket_state(event, ticket.team)
-        ticket.labels = self._get_ticket_labels(event, ticket.team)
+        # ticket.labels = self._get_ticket_labels(event, ticket.team)
         self.logger.debug(f"Ticket: {ticket.model_dump()}")
         return ticket
 

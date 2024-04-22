@@ -21,7 +21,7 @@ with you into a concise, coherent, and comprehensive output within the given wor
 
 # Instructions
 1. Summarize the input into a coherent and concise output.
-2. You MUST adhere to a word limit of {word_limit}. Your output should NEVER exceed this limit.
+2. You MUST adhere to a word limit of {word_limit}. UNDER NO CIRCUMSTANCES should your output EVER exceed this limit.
 3. Retain the essence of the input, and as much information as possible within the word limit.
 '''
         messages = [
