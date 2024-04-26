@@ -14,6 +14,7 @@ from tools.decider import Decider
 
 class Reporter:
     def __init__(self, logger=logging.getLogger(__name__)):
+        self.logger = logger
         self.linear = LinearClient(logger)
         self.decider = Decider()
     
