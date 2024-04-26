@@ -59,9 +59,9 @@ class TeamsNode(BaseModel):
 class Project(BaseModel):
     id: str
     name: str
-    description: Optional[str]
+    description: Optional[str] = Field(None, alias="description")
     target_date: Optional[str] = Field(None, alias="targetDate")
-    state: ProjectStates
+    state: ProjectStates = Field(None, alias="state")    
     project_updates: Optional[ProjectUpdatesNode]= Field(None, alias="projectUpdates")
     progress: Optional[float] = None
     url: Optional[str] = None

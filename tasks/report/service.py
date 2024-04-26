@@ -18,9 +18,10 @@ class Reporter:
         self.linear = LinearClient(logger)
         self.decider = Decider()
     
-    def trigger_report(self):
-        report = self._generate_report()
-        self.logger.debug(f"Report: {report.model_dump_json()}")
+    def trigger_report_for_roadmap(self, roadmap_id: str):
+        report = self._generate_report(roadmap_id)
+        print(report.model_dump_json())
+        self.logger.info(f"Report: {report.model_dump_json()}")
 
     def _get_project_with_best_update(self, projects: List[Project]) -> Project:
         context = "Project leads for different projects have provided an update on the status and progress of \
@@ -53,8 +54,8 @@ highlight it in the report and share it with the team."
         return f"Projects with updates: {len(projects_with_updates)},\
               Projects without updates: {len(projects_without_updates)}"
 
-    def _generate_report(self) -> Report:
-        current_projects = self._get_current_projects()
+    def _generate_report(self, roadmap_id: str) -> Report:
+        current_projects = self.linear.list_projects_in_roadmap(roadmap_id)
         projects_with_updates, projects_without_updates = [], []
         for project in current_projects:
             if project.project_updates and len(project.project_updates.nodes) > 0:

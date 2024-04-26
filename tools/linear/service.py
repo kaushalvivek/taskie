@@ -20,6 +20,25 @@ class LinearClient:
         response = requests.post(LINEAR_API_URL, json={'query': query, 'variables': variables}, headers=headers)
         return response.json()
 
+    def list_projects_in_roadmap(self, roadmap_id: str) -> list[Project]:
+        query = """
+            query($roadmapId: String!) {
+                roadmap(id: $roadmapId) {
+                    projects {
+                        nodes {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+        """
+        variables = {'roadmapId': roadmap_id}
+        json_response = self._query(query, variables)
+        project_nodes = json_response['data']['roadmap']['projects']['nodes']
+        projects = [Project(**project) for project in project_nodes]
+        return projects
+
     def get_project_by_id(self, id) -> Project:
         query = '''
             query($id: String!) {
