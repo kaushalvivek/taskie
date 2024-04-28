@@ -32,7 +32,9 @@ class Reporter:
         report = self._generate_report(roadmap_id)
         self.logger.info(f"Report generated for roadmap: {roadmap_id}")
         self.logger.debug(f"Report: {report}")
-        self.slack.post_message(message=report, channel=self.config.reporting_channel_id)
+        self.slack.post_message(message=report, channel_id=self.config.reporting_channel_id)
+        self.logger.info(f"Report sent to {self.config.reporting_channel_id}")
+        return
 
     def _get_project_with_best_update(self, projects: List[Project]) -> Project:
         # ignore all projects by admin, if admin is populated
