@@ -1,2 +1,2 @@
-from .entities import Reminder, Report
+from .entities import Reminder, Report, RiskUpdate
 from .config import Config

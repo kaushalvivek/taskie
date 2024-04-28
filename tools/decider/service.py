@@ -11,7 +11,7 @@ class Decider:
         pass
 
     # This method should return the best option provided the decision criteria and the options
-    def get_best_option(self, context: str, options: list[str], criteria: list[str]):
+    def get_best_option(self, context: str, options: list[str], criteria: list[str], with_chain_of_thought=False):
         formatted_options = "\n".join([f"{i+1}. {option}" for i, option in enumerate(options)])
         formatted_criteria = "\n".join([f"{i+1}. {criterion}" for i, criterion in enumerate(criteria)])
         system_instruction = f'''
@@ -54,6 +54,8 @@ Options:
         )
         response_json = json.loads(response.choices[0].message.content)
         self.logger.debug(f"Response: {response_json}")
+        if with_chain_of_thought:
+            return response_json["best_option"]-1, response_json["chain_of_thought"]
         return response_json["best_option"]-1
 
     # This method should return whether to proceed with an action or not, along with follow-ups if any

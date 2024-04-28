@@ -1,7 +1,8 @@
 import os
 import sys
 import logging
-from rich import print as rprint
+import redis
+from ratelimit import limits, sleep_and_retry
 sys.path.append(os.environ['PROJECT_PATH'])
 from models.slack import Message
 from slack_sdk import WebClient
@@ -10,9 +11,13 @@ class SlackClient:
     def __init__(self, logger=logging.getLogger(__name__)):
         self.logger = logger
         self.client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
+        self.cache = redis.Redis()
     
-    def post_message(self, channel_id: str, message: str):
-        self.client.chat_postMessage(channel=channel_id, text=message)
+    def post_message(self, channel_id: str, message=None, blocks=None):
+        if message:
+            self.client.chat_postMessage(channel=channel_id, text=message)
+        elif blocks:
+            self.client.chat_postMessage(channel=channel_id, blocks=blocks, mrkdwn=True, link_names=True)
         
     def reply_in_thread(self, channel_id: str, message: str, thread_ts: float):
         print(f"Replying in thread {thread_ts}")
@@ -43,3 +48,27 @@ class SlackClient:
             message= Message.get_message_from_event(message)
             message.channel_id = channel_id # set channel_id as it is not present in the response
         return message
+
+    @sleep_and_retry
+    @limits(calls=10, period=60)
+    def get_tag_for_user(self, user_name: str) -> str:
+        if self.cache.exists(user_name):
+            self.logger.info(f"Cache hit for user: {user_name}")
+            return self.cache.get(user_name).decode("utf-8")
+        full_name_response = self.client.users_list(search=user_name)
+        if full_name_response["ok"] and full_name_response["members"]:
+            response = full_name_response
+        else:
+            first_name = user_name.split()[0]
+            first_name_response = self.client.users_list(search=first_name)
+            if first_name_response["ok"] and first_name_response["members"]:
+                response = first_name_response
+            else:
+                response = None
+        if response:
+            response = {"ok": True, "user": response["members"][0]}
+        if response["ok"]:
+            tag = f"<@{response['user']['id']}>"
+            self.cache.set(user_name, tag)
+            return tag
+        return None
