@@ -37,6 +37,8 @@ class LinearClient:
         json_response = self._query(query, variables)
         project_nodes = json_response['data']['roadmap']['projects']['nodes']
         projects = [Project(**project) for project in project_nodes]
+        self.logger.info(f"Fetched {len(projects)} projects from roadmap")
+        self.logger.debug(f"{projects}" )
         return projects
 
     def get_project_by_id(self, id) -> Project:
@@ -88,9 +90,20 @@ class LinearClient:
             }
         '''
         variables = {'id': id}
-        json_response = self._query(query, variables)
-        json_project = json_response['data']['project']
-        return Project(**json_project)
+        try:
+            json_response = self._query(query, variables)
+        except Exception as e:
+            self.logger.error(f"Error fetching project by id: {e}")
+            self.logger.error(json_response)
+            raise e
+        try:
+            json_project = json_response['data']['project']
+            project = Project(**json_project)
+        except Exception as e:
+            self.logger.error(f"Error parsing project: {e}")
+            self.logger.error(json_response)
+            raise e
+        return project
 
     def list_projects(self) -> List[Project]:
         query = '''

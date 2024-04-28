@@ -68,6 +68,7 @@ class Project(BaseModel):
     lead: Optional[User] = None
     milestones: Optional[ProjectMilestonesNode] = Field(None, alias="projectMilestones")
     teams: Optional[TeamsNode] = None
+    diff: Optional[str] = Field(None, alias="diffMarkdown")
     
 class Ticket(BaseModel):
     id: str = Field(None, alias="id")
