@@ -9,7 +9,7 @@ from tqdm import tqdm
 from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
-from models.linear import ProjectStates, Project
+from models.linear import ProjectStates, Project, ProjectStatus
 from models.report import Reminder, Report
 from tools.decider import Decider
 
@@ -17,7 +17,7 @@ class Reporter:
     def __init__(self, logger=logging.getLogger(__name__)):
         self.logger = logger
         self.linear = LinearClient(logger)
-        self.decider = Decider()
+        self.decider = Decider(logger=logger)
     
     def trigger_report_for_roadmap(self, roadmap_id: str):
         report = self._generate_report(roadmap_id)
@@ -39,6 +39,8 @@ highlight it in the report and share it with the team."
                 latest_update = project.project_updates.nodes[0]
                 options.append(f"{project.name} - {latest_update.body}")
         best_project_index = self.decider.get_best_option(context, options, criteria)
+        self.logger.info(f"Best updated project: {projects[best_project_index].name}")
+        self.logger.debug(projects[best_project_index].model_dump_json())
         return projects[best_project_index]
 
     def _get_reminders(self, projects: List[Project]) -> List[Reminder]:
@@ -62,10 +64,17 @@ highlight it in the report and share it with the team."
 
     def _generate_report(self, roadmap_id: str) -> Report:
         self.logger.info(f"Generating report for roadmap: {roadmap_id}")
-        current_projects = self.linear.list_projects_in_roadmap(roadmap_id)
+        roadmap_projects = self.linear.list_projects_in_roadmap(roadmap_id)
         
-        for idx, project in tqdm(enumerate(current_projects), desc="Pulling full projects"):
-            current_projects[idx] = self.linear.get_project_by_id(project.id)
+        for idx, project in tqdm(enumerate(roadmap_projects), desc="Pulling full projects"):
+            roadmap_projects[idx] = self.linear.get_project_by_id(project.id)
+        
+        current_projects = []
+        for project in roadmap_projects:
+            if project.state in [ProjectStates.PLANNED, ProjectStates.STARTED]:
+                current_projects.append(project)
+        self.logger.info(f"{len(current_projects)} projects are in progress or planned")
+        
         
         projects_with_updates, projects_without_updates = [], []
         for project in current_projects:
@@ -75,16 +84,29 @@ highlight it in the report and share it with the team."
                 projects_without_updates.append(project)
         self.logger.info(f"{len(projects_with_updates)} projects with updates, {len(projects_without_updates)} projects without updates")
         
-        rprint(projects_with_updates[0])
-        quit()
-        
         if len(projects_with_updates) > 0:
             best_updated_project = self._get_project_with_best_update(projects_with_updates)
         else:
             self.logger.info(f"No projects with updates found")
             best_updated_project = None
-        self.logger.info(f"Best updated project: {best_updated_project.name}")
-        self.logger.debug(best_updated_project.model_dump_json())
+        
+        for idx, project in tqdm(enumerate(projects_with_updates), desc="Updating project statuses"):
+            status_idx = self.decider.get_best_option(
+                context=f'''Project Leads have provided updates on the projects they are leading. Based on the provided updates, you have to figure out 
+what's the best current status for the project. Here are the details about the project:
+{project.model_dump_json()}''', 
+                options=[status.value for status in ProjectStatus],
+                criteria=[
+                    "If the project lead explicitly mentions the project's status, then that's the obvious correct choice.",
+                    "If the project flags a risk or delay, in the project, then the status should be flagged accordingly.",
+                    "Use the project's latest update to infer the status.",
+                ]
+                )
+            projects_with_updates[idx].status = list(ProjectStatus)[status_idx]
+        
+        rprint(projects_with_updates)
+        quit()
+        
         reminders = self._get_reminders(projects_without_updates)
 
         exec_summary = self._get_executive_summary(projects_with_updates, projects_without_updates)

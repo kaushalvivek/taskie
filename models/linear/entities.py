@@ -10,6 +10,11 @@ class ProjectStates(str, Enum):
     CANCELED = "canceled"
     BACKLOG = "backlog"
 
+class ProjectStatus(str, Enum):
+    ON_TRACK = "on track"
+    AT_RISK = "at risk"
+    OFF_TRACK = "off track"
+
 class User(BaseModel):
     id: str
     name: str
@@ -63,6 +68,7 @@ class Project(BaseModel):
     target_date: Optional[str] = Field(None, alias="targetDate")
     state: ProjectStates = Field(None, alias="state")    
     project_updates: Optional[ProjectUpdatesNode]= Field(None, alias="projectUpdates")
+    status: Optional[ProjectStatus] = None
     progress: Optional[float] = None
     url: Optional[str] = None
     lead: Optional[User] = None

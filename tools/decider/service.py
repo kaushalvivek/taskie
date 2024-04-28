@@ -5,7 +5,7 @@ import openai
 import json
 import logging
 class Decider:
-    def __init__(self, model="gpt-4-turbo", logger=logging.getLogger(__name__)):
+    def __init__(self, model="gpt-3.5-turbo", logger=logging.getLogger(__name__)):
         self.model = model
         self.logger = logger
         pass
@@ -53,6 +53,8 @@ Options:
             temperature=0
         )
         response_json = json.loads(response.choices[0].message.content)
+        self.logger.info(f"Best option: {options[response_json['best_option']-1]}")
+        self.logger.debug(f"Response: {response_json}")
         return response_json["best_option"]-1
 
     # This method should return whether to proceed with an action or not, along with follow-ups if any
