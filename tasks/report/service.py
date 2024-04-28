@@ -124,7 +124,7 @@ highlight it in the report and share it with the team."
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"The best update, according to my infinite elephant wisdom, is on *{report.best_update.name}*, added by *{self.slack.get_tag_for_user(report.best_update.lead.name)}*. 👏"
+                    "text": f"The best update, according to my infinite elephant wisdom, is on *{report.best_update.name}*, added by *{self.slack.get_tag_for_user(report.best_update.lead.email, self.config.domains)}*. 👏"
                 }
             })
         
@@ -142,7 +142,7 @@ highlight it in the report and share it with the team."
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"There are {len(report.risks)} projects that are at risk. Here's a brief summary:\n{risks_text}"
+                    "text": f"There are {len(report.risks)} projects that are at risk. Here's a brief summary:\n\n{risks_text}"
                 }
             })
         
@@ -155,7 +155,7 @@ highlight it in the report and share it with the team."
                     "emoji": True
                 }
             })
-            reminders_text = "\n".join([f"- *{self.slack.get_tag_for_user(reminder.user.name)}*: {', '.join([project.name for project in reminder.projects])}." for reminder in report.reminders])
+            reminders_text = "\n".join([f"- *{self.slack.get_tag_for_user(reminder.user.email,self.config.domains)}*: {', '.join([project.name for project in reminder.projects])}." for reminder in report.reminders])
             message_blocks.append({
                 "type": "section",
                 "text": {

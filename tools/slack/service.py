@@ -49,26 +49,18 @@ class SlackClient:
             message.channel_id = channel_id # set channel_id as it is not present in the response
         return message
 
-    @sleep_and_retry
-    @limits(calls=10, period=60)
-    def get_tag_for_user(self, user_name: str) -> str:
-        if self.cache.exists(user_name):
-            self.logger.info(f"Cache hit for user: {user_name}")
-            return self.cache.get(user_name).decode("utf-8")
-        full_name_response = self.client.users_list(search=user_name)
-        if full_name_response["ok"] and full_name_response["members"]:
-            response = full_name_response
-        else:
-            first_name = user_name.split()[0]
-            first_name_response = self.client.users_list(search=first_name)
-            if first_name_response["ok"] and first_name_response["members"]:
-                response = first_name_response
-            else:
-                response = None
-        if response:
-            response = {"ok": True, "user": response["members"][0]}
-        if response["ok"]:
-            tag = f"<@{response['user']['id']}>"
-            self.cache.set(user_name, tag)
-            return tag
-        return None
+    def get_tag_for_user(self, email: str, domains: [str]) -> str:
+        user_name = email.split('@')[0]
+        options = []
+        for domain in domains:
+            options.append(f"{user_name}@{domain}")
+        
+        for option in options:
+            try:
+                response = self.client.users_lookupByEmail(email=option)
+                if response["ok"] and response["user"] is not None:
+                    return f"<@{response['user']['id']}>"
+            except Exception as e:
+                continue
+        
+        return user_name
