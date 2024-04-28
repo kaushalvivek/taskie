@@ -32,15 +32,15 @@ class Reporter:
     def trigger_report(self):
         roadmap_id = self.config.roadmap_id
         report = None
-        if self.cache.get(roadmap_id):
-            self.logger.info(f"Report found in cache for roadmap: {roadmap_id}")
-            report_data = self.cache.get(roadmap_id)
-            report_data_str = report_data.decode('utf-8')
-            report = Report.parse_obj(json.loads(report_data_str))
-        else:
-            self.logger.info(f"Report not found in cache for roadmap: {roadmap_id}")
-            report = self._generate_report(roadmap_id)
-            self.cache.set(roadmap_id, report.model_dump_json())
+        # if self.cache.get(roadmap_id):
+        #     self.logger.info(f"Report found in cache for roadmap: {roadmap_id}")
+        #     report_data = self.cache.get(roadmap_id)
+        #     report_data_str = report_data.decode('utf-8')
+        #     report = Report.parse_obj(json.loads(report_data_str))
+        # else:
+            # self.logger.info(f"Report not found in cache for roadmap: {roadmap_id}")
+        report = self._generate_report(roadmap_id)
+        self.cache.set(roadmap_id, report.model_dump_json())
         self.logger.info(f"Report generated for roadmap: {roadmap_id}")
         self.logger.debug(f"Report: {report}")
         slack_message_blocks = self._write_slack_message(report)
@@ -106,7 +106,7 @@ highlight it in the report and share it with the team."
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"👋 Hi, out of <{len(report.projects_with_updates) + len(report.projects_without_updates)} projects|{self.config.roadmap_view_url}>, {len(report.projects_with_updates)} have an update from their leads and {len(report.projects_without_updates)} are missing an update from their leads."
+                "text": f"👋 Hi, out of <{self.config.roadmap_view_url}|{len(report.projects_with_updates) + len(report.projects_without_updates)} projects>, {len(report.projects_with_updates)} have an update from their leads and {len(report.projects_without_updates)} are missing an update."
             }
         })
 
@@ -124,7 +124,7 @@ highlight it in the report and share it with the team."
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"The best update, according to my infinite elephant wisdom, is on *{report.best_update.name}*, added by *{self.slack.get_tag_for_user(report.best_update.lead.email, self.config.domains)}*. 👏"
+                    "text": f"The best update, according to GPT, is on *{report.best_update.name}*, added by *{self.slack.get_tag_for_user(report.best_update.lead.email, self.config.domains)}*. 👏"
                 }
             })
         
@@ -137,7 +137,7 @@ highlight it in the report and share it with the team."
                     "emoji": True
                 }
             })
-            risks_text = "\n\n".join([f"*{risk.project_name}*:\n- _risk_: {risk.why}\n- _next steps_: {risk.what_next}" for risk in report.risks])
+            risks_text = "\n\n".join([f"*{risk.project_name}*:\n- _why at risk?_: {risk.why}\n- _next steps_: {risk.what_next}" for risk in report.risks])
             message_blocks.append({
                 "type": "section",
                 "text": {
@@ -214,7 +214,7 @@ what's the best current status for the project. Here are the details about the p
                 options=[status.value for status in ProjectStatus],
                 criteria=[
                     "If the project lead explicitly mentions the project's status, then that's the obvious correct choice.",
-                    "If the project flags a risk or delay, in the project, then the status should be flagged accordingly.",
+                    "If the project hints at a risk, or a delay, in the project, then the status should be flagged accordingly.",
                     "Use the project's latest update to infer the status.",
                 ]
                 )
