@@ -12,7 +12,7 @@ sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
 from tools.slack import SlackClient
 from models.linear import ProjectStates, Project, ProjectStatus
-from models.report import Reminder, Config
+from models.report import Reminder, Config, Report
 from tools.decider import Decider
 from tools.writer import Writer
 
@@ -77,22 +77,22 @@ highlight it in the report and share it with the team."
         report = f'''Out of {len(projects_with_updates) + len(projects_without_updates)} projects, \
 {len(projects_with_updates)} have an update from their leads and {len(projects_without_updates)} are missing an update from their leads.
 
-👑 The best update, according to my infinite elephant wisdom, is on {best_updated_project.name}, added by {best_updated_project.lead.name}. 👑
+✨ The best update, according to my infinite elephant wisdom, is on {best_updated_project.name}, added by {best_updated_project.lead.name}. 👏
 '''
         risky_projects = [project for project in projects_with_updates if project.status is not ProjectStatus.ON_TRACK]
         if len(risky_projects) > 0:
             summarizer_input = "\n\n".join([f"{project.name} - {project.project_updates.nodes[0].body}" for project in risky_projects])
             risk_summary = self.writer.summarize(
                 context='''Project leads have provided updates on projects that are off track, or at risk. Our goal is to write an excellent 
-executive summary of the risk with these projects and emphasise on the WHY by taking insights from the shared update. The output MUST 
-be in bullet points. Be VERY brief. ONLY includ the following bullet points for each project:
+executive summary of the risk with these projects and emphasize on the WHY by taking insights from the shared update. The output MUST 
+be in bullet points. Be VERY brief. ONLY include the following bullet points for each project:
 - (Project Name)
   - why not on track: (a VERY BRIEF reach here)
   - what next: (a VERY BRIEF summary of what the project lead has shared)
 ... and so on, for each project.
 ''',
                 word_limit=50,
-                input=summarizer_input
+                input=summarizer_input  
             )
             report += f"\n\nThere are some projects that are off track or at risk. Here is a brief summary:\n\n{risk_summary}"
 
@@ -112,7 +112,7 @@ A gentle reminder to the following folks to add a project update ASAP:'''
 
         return report
 
-    def _generate_report(self, roadmap_id: str) -> str:
+    def _generate_report(self, roadmap_id: str) -> Report:
         self.logger.info(f"Generating report for roadmap: {roadmap_id}")
         roadmap_projects = self.linear.list_projects_in_roadmap(roadmap_id)
         
@@ -154,7 +154,11 @@ what's the best current status for the project. Here are the details about the p
                 )
             projects_with_updates[idx].status = list(ProjectStatus)[status_idx]
 
-        report = self._write_report(projects_with_updates, projects_without_updates, best_updated_project)
+        report = Report()
+        report.reminders = self._get_reminders(projects_without_updates)
+        
+        
+        report.summary = self._write_report(projects_with_updates, projects_without_updates, best_updated_project)
         self.logger.info(f"\n\nReport: {report}")
         return report
 
