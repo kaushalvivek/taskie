@@ -13,5 +13,5 @@ logger.addHandler(console_handler)
 
 reporter = Reporter(logger=logger)
 # Trigger the report generation
-reporter.trigger_report_for_roadmap(roadmap_id=os.environ['ROADMAP_ID'])
+reporter.trigger_report()
 

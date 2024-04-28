@@ -4,13 +4,14 @@ The reporter service is responsible for generating the project report.
 import sys
 import os
 import logging
+import yaml
 from typing import List
 from tqdm import tqdm
 from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
 from models.linear import ProjectStates, Project, ProjectStatus
-from models.report import Reminder, Report
+from models.report import Reminder, Report, Config
 from tools.decider import Decider
 
 class Reporter:
@@ -18,13 +19,20 @@ class Reporter:
         self.logger = logger
         self.linear = LinearClient(logger)
         self.decider = Decider(logger=logger)
+        with open(f"{os.environ['PROJECT_PATH']}/config/report.yaml", 'r') as file:
+            config_data = yaml.safe_load(file)
+        self.config = Config(**config_data)
     
-    def trigger_report_for_roadmap(self, roadmap_id: str):
+    def trigger_report(self):
+        roadmap_id = self.config.roadmap_id
         report = self._generate_report(roadmap_id)
         self.logger.info(f"Report generated for roadmap: {roadmap_id}")
         self.logger.debug(f"Report: {report.model_dump_json()}")
 
     def _get_project_with_best_update(self, projects: List[Project]) -> Project:
+        # ignore all projects by admin, if admin is populated
+        if self.config.admin_user_email:
+            projects = [project for project in projects if project.lead.email != self.config.admin_user_email]
         self.logger.info(f"Getting project with best update for {len(projects)} projects")
         context = "Project leads for different projects have provided an update on the status and progress of \
 the respective projects they are leading. We want to identify the project with the best update so that we can \
