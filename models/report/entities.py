@@ -8,8 +8,3 @@ from models.linear import Project, User
 class Reminder(BaseModel):
     user: User
     projects: list[Project]
-
-class Report(BaseModel):
-    reminders: Optional[list[Reminder]]
-    best_updated_project: Optional[Project]
-    exec_summary: Optional[str]

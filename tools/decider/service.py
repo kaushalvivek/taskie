@@ -53,7 +53,6 @@ Options:
             temperature=0
         )
         response_json = json.loads(response.choices[0].message.content)
-        self.logger.info(f"Best option: {options[response_json['best_option']-1]}")
         self.logger.debug(f"Response: {response_json}")
         return response_json["best_option"]-1
 

@@ -11,8 +11,9 @@ from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
 from models.linear import ProjectStates, Project, ProjectStatus
-from models.report import Reminder, Report, Config
+from models.report import Reminder, Config
 from tools.decider import Decider
+from tools.writer import Writer
 
 class Reporter:
     def __init__(self, logger=logging.getLogger(__name__)):
@@ -22,12 +23,13 @@ class Reporter:
         with open(f"{os.environ['PROJECT_PATH']}/config/report.yaml", 'r') as file:
             config_data = yaml.safe_load(file)
         self.config = Config(**config_data)
+        self.writer = Writer(logger=logger)
     
     def trigger_report(self):
         roadmap_id = self.config.roadmap_id
         report = self._generate_report(roadmap_id)
         self.logger.info(f"Report generated for roadmap: {roadmap_id}")
-        self.logger.debug(f"Report: {report.model_dump_json()}")
+        self.logger.debug(f"Report: {report}")
 
     def _get_project_with_best_update(self, projects: List[Project]) -> Project:
         # ignore all projects by admin, if admin is populated
@@ -65,12 +67,47 @@ highlight it in the report and share it with the team."
         self.logger.debug(reminders)
         return reminders
 
-    def _get_executive_summary(self, projects_with_updates: List[Project], projects_without_updates: List[Project]) -> str:
-        self.logger.info(f"Generating executive summary")
-        return f"Projects with updates: {len(projects_with_updates)},\
-              Projects without updates: {len(projects_without_updates)}"
+    def _write_report(self, projects_with_updates: List[Project], projects_without_updates: List[Project], best_updated_project: Project) -> str:
 
-    def _generate_report(self, roadmap_id: str) -> Report:
+        report = f'''Out of {len(projects_with_updates) + len(projects_without_updates)} projects, \
+{len(projects_with_updates)} have an update from their leads and {len(projects_without_updates)} are missing an update from their leads.
+
+👑 The best update, according to my infinite elephant wisdom, is on {best_updated_project.name}, added by {best_updated_project.lead.name}. 👑
+'''
+        risky_projects = [project for project in projects_with_updates if project.status is not ProjectStatus.ON_TRACK]
+        if len(risky_projects) > 0:
+            summarizer_input = "\n\n".join([f"{project.name} - {project.project_updates.nodes[0].body}" for project in risky_projects])
+            risk_summary = self.writer.summarize(
+                context='''Project leads have provided updates on projects that are off track, or at risk. Our goal is to write an excellent 
+executive summary of the risk with these projects and emphasise on the WHY by taking insights from the shared update. The output MUST 
+be in bullet points. Be VERY brief. ONLY includ the following bullet points for each project:
+- (Project Name)
+  - why not on track: (a VERY BRIEF reach here)
+  - what next: (a VERY BRIEF summary of what the project lead has shared)
+... and so on, for each project.
+''',
+                word_limit=50,
+                input=summarizer_input
+            )
+            report += f"\n\nThere are some projects that are off track or at risk. Here is a brief summary:\n\n{risk_summary}"
+
+        if len(projects_without_updates) > 0:
+
+            reminders = self._get_reminders(projects_without_updates)
+
+            reminder_text = f'''\n\nThere are {len(projects_without_updates)} projects that are missing an update from their leads. 
+A gentle reminder to the following folks to add a project update ASAP:'''
+            
+            for reminder in reminders:
+                reminder_text += f"\n\n{reminder.user.name}:"
+                for project in reminder.projects:
+                    reminder_text += f"\n - {project.name}"
+
+            report += reminder_text
+
+        return report
+
+    def _generate_report(self, roadmap_id: str) -> str:
         self.logger.info(f"Generating report for roadmap: {roadmap_id}")
         roadmap_projects = self.linear.list_projects_in_roadmap(roadmap_id)
         
@@ -111,14 +148,10 @@ what's the best current status for the project. Here are the details about the p
                 ]
                 )
             projects_with_updates[idx].status = list(ProjectStatus)[status_idx]
-        
-        rprint(projects_with_updates)
-        quit()
-        
-        reminders = self._get_reminders(projects_without_updates)
 
-        exec_summary = self._get_executive_summary(projects_with_updates, projects_without_updates)
-        return Report(reminders=reminders, best_updated_project=best_updated_project, exec_summary=exec_summary)
+        report = self._write_report(projects_with_updates, projects_without_updates, best_updated_project)
+        self.logger.info(f"\n\nReport: {report}")
+        return report
 
     def _get_current_projects(self) -> List[Project]:
         projects = self.linear.list_projects()
