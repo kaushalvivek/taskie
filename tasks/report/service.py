@@ -240,6 +240,4 @@ what's the best current status for the project. Here are the details about the p
                     break
             
         return current_projects
-    
-    def _send_report(self):
-        raise NotImplementedError("Service not implemented yet")
+
