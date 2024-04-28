@@ -40,7 +40,7 @@ class Reporter:
         # else:
             # self.logger.info(f"Report not found in cache for roadmap: {roadmap_id}")
         report = self._generate_report(roadmap_id)
-        self.cache.set(roadmap_id, report.model_dump_json())
+        # self.cache.set(roadmap_id, report.model_dump_json())
         self.logger.info(f"Report generated for roadmap: {roadmap_id}")
         self.logger.debug(f"Report: {report}")
         slack_message_blocks = self._write_slack_message(report)
@@ -106,7 +106,7 @@ highlight it in the report and share it with the team."
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"👋 Hi, out of <{self.config.roadmap_view_url}|{len(report.projects_with_updates) + len(report.projects_without_updates)} projects>, {len(report.projects_with_updates)} have an update from their leads and {len(report.projects_without_updates)} are missing an update."
+                "text": f"👋 Hi @here, out of <{self.config.roadmap_view_url}|{len(report.projects_with_updates) + len(report.projects_without_updates)} projects>, {len(report.projects_with_updates)} have an update from their leads and {len(report.projects_without_updates)} are missing an update."
             }
         })
 
@@ -184,6 +184,21 @@ be in the provided output format.
             project_risks.append(risk_update)
         return project_risks
 
+    def _enrich_projects_with_status(self, projects: List[Project]) -> List[Project]:
+        for idx, project in tqdm(enumerate(projects), desc="Updating project statuses"):
+            status_idx = self.decider.get_best_option(
+                context=f'''Project Leads have provided updates on the projects they are leading. Based on the provided updates, you have to figure out 
+what's the best current status for the project. Here are the details about the project:
+{project.model_dump_json()}''', 
+                options=[status.value for status in ProjectStatus],
+                criteria=[
+                    "If the project lead explicitly mentions the project's status, then that's the obvious correct choice.",
+                    "If the lead flags a risk, or a delay, in the project, then the status should be set accordingly.",
+                    "Use the project's latest update to infer the status.",
+                ])
+            projects[idx].status = list(ProjectStatus)[status_idx] 
+        return projects
+
     def _generate_report(self, roadmap_id: str) -> Report:
         self.logger.info(f"Generating report for roadmap: {roadmap_id}")
         roadmap_projects = self.linear.list_projects_in_roadmap(roadmap_id)
@@ -205,20 +220,7 @@ be in the provided output format.
                 projects_without_updates.append(project)
         self.logger.info(f"{len(projects_with_updates)} projects with updates, {len(projects_without_updates)} projects without updates")
         
-        
-        for idx, project in tqdm(enumerate(projects_with_updates), desc="Updating project statuses"):
-            status_idx = self.decider.get_best_option(
-                context=f'''Project Leads have provided updates on the projects they are leading. Based on the provided updates, you have to figure out 
-what's the best current status for the project. Here are the details about the project:
-{project.model_dump_json()}''', 
-                options=[status.value for status in ProjectStatus],
-                criteria=[
-                    "If the project lead explicitly mentions the project's status, then that's the obvious correct choice.",
-                    "If the project hints at a risk, or a delay, in the project, then the status should be flagged accordingly.",
-                    "Use the project's latest update to infer the status.",
-                ]
-                )
-            projects_with_updates[idx].status = list(ProjectStatus)[status_idx]
+        projects_with_updates = self._enrich_projects_with_status(projects_with_updates)
 
         return Report(
             reminders=self._get_reminders(projects_without_updates),
