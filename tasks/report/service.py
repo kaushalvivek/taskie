@@ -10,6 +10,7 @@ from tqdm import tqdm
 from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
+from tools.slack import SlackClient
 from models.linear import ProjectStates, Project, ProjectStatus
 from models.report import Reminder, Config
 from tools.decider import Decider
@@ -24,12 +25,14 @@ class Reporter:
             config_data = yaml.safe_load(file)
         self.config = Config(**config_data)
         self.writer = Writer(logger=logger)
+        self.slack = SlackClient(logger=logger)
     
     def trigger_report(self):
         roadmap_id = self.config.roadmap_id
         report = self._generate_report(roadmap_id)
         self.logger.info(f"Report generated for roadmap: {roadmap_id}")
         self.logger.debug(f"Report: {report}")
+        self.slack.post_message(message=report, channel=self.config.reporting_channel_id)
 
     def _get_project_with_best_update(self, projects: List[Project]) -> Project:
         # ignore all projects by admin, if admin is populated
