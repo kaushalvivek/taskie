@@ -37,7 +37,7 @@ class Reporter:
             projects = [project for project in projects if project.lead.email != self.config.admin_user_email]
         self.logger.info(f"Getting project with best update for {len(projects)} projects")
         context = "Project leads for different projects have provided an update on the status and progress of \
-the respective projects they are leading. We want to identify the project with the best update so that we can \
+the respective projects they are leading. Your goal is to identify the project with the best update so that we can \
 highlight it in the report and share it with the team."
         criteria = [
             "Update clearly articulates the progress made",
