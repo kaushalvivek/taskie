@@ -57,8 +57,8 @@ class Reporter:
 the respective projects they are leading. Your goal is to identify the project with the best update so that we can \
 highlight it in the report and share it with the team."
         criteria = [
-            "Update clearly articulates the progress made",
-            "Update provides a clear path forward",
+            "Update clearly articulates the progress and decisions made so far",
+            "Update flags risks, if any, to the set timelines and provides a clear path forward",
             "Update reflects on misses, if any, and how they were addressed",
         ]
         options = []
