@@ -28,6 +28,14 @@ class Reporter:
         self.writer = Writer(logger=logger)
         self.slack = SlackClient(logger=logger)
         self.cache = redis.Redis()
+
+    def send_reminder(self):
+        roadmap_id = self.config.roadmap_id
+        current_projects = self._get_projects_for_roadmap(roadmap_id)
+        reminders = self._get_reminders(current_projects)
+        reminder_block = self._get_reminder_block(reminders)
+        self.slack.post_message(blocks=[reminder_block], channel_id=self.config.reporting_channel_id)
+        
         
     def trigger_report(self):
         roadmap_id = self.config.roadmap_id
@@ -85,6 +93,17 @@ highlight it in the report and share it with the team."
         self.logger.info(f"Generated {len(reminders)} reminders")
         self.logger.debug(reminders)
         return reminders
+
+    def _get_reminder_block(self, reminders: List[Reminder]):
+        reminders_text = "\n".join([f"- *{self.slack.get_tag_for_user(reminder.user.email,self.config.domains)}*: {', '.join([project.name for project in reminder.projects])}." for reminder in reminders])
+        block = {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"Hey team! A gentle reminder to the following folks to add a project update before EOD:\n\n{reminders_text}"
+                }
+            }
+        return block
 
     def _write_slack_message(self, report: Report):
         
@@ -155,14 +174,7 @@ highlight it in the report and share it with the team."
                     "emoji": True
                 }
             })
-            reminders_text = "\n".join([f"- *{self.slack.get_tag_for_user(reminder.user.email,self.config.domains)}*: {', '.join([project.name for project in reminder.projects])}." for reminder in report.reminders])
-            message_blocks.append({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"There are {len(report.projects_without_updates)} projects that are missing an update from their leads. A gentle reminder to the following folks to add a project update ASAP:\n\n{reminders_text}"
-                }
-            })
+            message_blocks.append(self._get_reminder_block(report.reminders))
         return message_blocks
 
     def _get_project_risks(self, projects: List[Project]) -> List[RiskUpdate]:
@@ -199,8 +211,7 @@ what's the best current status for the project. Here are the details about the p
             projects[idx].status = list(ProjectStatus)[status_idx] 
         return projects
 
-    def _generate_report(self, roadmap_id: str) -> Report:
-        self.logger.info(f"Generating report for roadmap: {roadmap_id}")
+    def _get_projects_for_roadmap(self, roadmap_id: str) -> List[Project]:
         roadmap_projects = self.linear.list_projects_in_roadmap(roadmap_id)
         
         for idx, project in tqdm(enumerate(roadmap_projects), desc="Pulling full projects"):
@@ -211,6 +222,11 @@ what's the best current status for the project. Here are the details about the p
             if project.state in [ProjectStates.PLANNED, ProjectStates.STARTED]:
                 current_projects.append(project)
         self.logger.info(f"{len(current_projects)} projects are in progress or planned")
+        return current_projects
+
+    def _generate_report(self, roadmap_id: str) -> Report:
+        self.logger.info(f"Generating report for roadmap: {roadmap_id}")
+        current_projects = self._get_projects_for_roadmap(roadmap_id)
         
         projects_with_updates, projects_without_updates = [], []
         for project in current_projects:
