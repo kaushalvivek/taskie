@@ -6,7 +6,7 @@ import os
 import logging
 import yaml
 import redis
-import json
+from datetime import datetime, timedelta
 from typing import List
 from tqdm import tqdm
 sys.path.append(os.environ['PROJECT_PATH'])
@@ -17,15 +17,17 @@ from models.report import Reminder, Config, Report, RiskUpdate
 from tools.decider import Decider
 from tools.writer import Writer
 
+PROJECT_UPDATE_CUTOFF_DAYS = 4
+
 class Reporter:
     def __init__(self, logger=logging.getLogger(__name__)):
         self.logger = logger
         self.linear = LinearClient(logger)
-        self.decider = Decider(logger=logger)
+        self.decider = Decider(logger=logger, model="gpt-4-turbo")
         with open(f"{os.environ['PROJECT_PATH']}/config/report.yaml", 'r') as file:
             config_data = yaml.safe_load(file)
         self.config = Config(**config_data)
-        self.writer = Writer(logger=logger)
+        self.writer = Writer(logger=logger, model="gpt-4-turbo")
         self.slack = SlackClient(logger=logger)
         self.cache = redis.Redis()
 
@@ -35,8 +37,7 @@ class Reporter:
         reminders = self._get_reminders(current_projects)
         reminder_block = self._get_reminder_block(reminders)
         self.slack.post_message(blocks=[reminder_block], channel_id=self.config.reporting_channel_id)
-        
-        
+               
     def trigger_report(self):
         roadmap_id = self.config.roadmap_id
         report = None
@@ -94,13 +95,13 @@ highlight it in the report and share it with the team."
         self.logger.debug(reminders)
         return reminders
 
-    def _get_reminder_block(self, reminders: List[Reminder]):
+    def _get_reminder_block(self, reminders: List[Reminder], intro="Hey team! A gentle reminder to the following folks to add a project update before EOD:"):
         reminders_text = "\n".join([f"- *{self.slack.get_tag_for_user(reminder.user.email,self.config.domains)}*: {', '.join([project.name for project in reminder.projects])}." for reminder in reminders])
         block = {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"Hey team! A gentle reminder to the following folks to add a project update before EOD:\n\n{reminders_text}"
+                    "text": f"{intro}\n\n{reminders_text}"
                 }
             }
         return block
@@ -156,7 +157,7 @@ highlight it in the report and share it with the team."
                     "emoji": True
                 }
             })
-            risks_text = "\n\n".join([f"*{risk.project_name}*:\n- _why at risk?_: {risk.why}\n- _next steps_: {risk.what_next}" for risk in report.risks])
+            risks_text = "\n\n".join([f"*{risk.project_name}* ({risk.project_milestone}):\n- _why at risk?_: {risk.why}\n- _next steps_: {risk.what_next}" for risk in report.risks])
             message_blocks.append({
                 "type": "section",
                 "text": {
@@ -174,7 +175,8 @@ highlight it in the report and share it with the team."
                     "emoji": True
                 }
             })
-            message_blocks.append(self._get_reminder_block(report.reminders))
+            message_blocks.append(self._get_reminder_block(reminders=report.reminders,
+                intro="The following projects are missing an update from their leads -- a gentle reminder to add one ASAP:"))
         return message_blocks
 
     def _get_project_risks(self, projects: List[Project]) -> List[RiskUpdate]:
@@ -193,6 +195,7 @@ be in the provided output format.
                 output_model=RiskUpdate
             )
             self.logger.debug(risk_update)
+            risk_update.project_name = project.name
             project_risks.append(risk_update)
         return project_risks
 
@@ -230,7 +233,10 @@ what's the best current status for the project. Here are the details about the p
         
         projects_with_updates, projects_without_updates = [], []
         for project in current_projects:
-            if project.project_updates and len(project.project_updates.nodes) > 0:
+            created_at_timestamp = datetime.strptime(project.project_updates.nodes[0].created_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+            if project.project_updates and \
+                len(project.project_updates.nodes) > 0 and \
+                created_at_timestamp > datetime.now() - timedelta(days=PROJECT_UPDATE_CUTOFF_DAYS):
                 projects_with_updates.append(project)
             else:
                 projects_without_updates.append(project)

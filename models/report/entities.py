@@ -12,6 +12,7 @@ class Reminder(BaseModel):
 
 class RiskUpdate(BaseModel):
     project_name: str = Field(None, description="Name of the project")
+    project_milestone: str = Field(None, description="The milestone that is at risk")
     why: str = Field(None, description="A VERY BRIEF reason for why the project is at risk")
     what_next: str = Field(None, description="A VERY BRIEF summary of what the project lead has shared as the next steps")
 
