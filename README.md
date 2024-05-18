@@ -1,4 +1,4 @@
-# Project Manager
+# Tasky: an AI-powered Project Manager
 
 <p align="center">
     <img src="https://vivek-public-cdn.s3.us-west-2.amazonaws.com/project-manager.png" alt="Project Manager Logo" width="200" height="200">
