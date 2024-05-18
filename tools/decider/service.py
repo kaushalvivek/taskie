@@ -8,10 +8,10 @@ class Decider:
     def __init__(self, model="gpt-3.5-turbo", logger=logging.getLogger(__name__)):
         self.model = model
         self.logger = logger
-        pass
+        return
 
     # This method should return the best option provided the decision criteria and the options
-    def get_best_option(self, context: str, options: list[str], criteria: list[str]):
+    def get_best_option(self, context: str, options: list[str], criteria: list[str], with_chain_of_thought=False):
         formatted_options = "\n".join([f"{i+1}. {option}" for i, option in enumerate(options)])
         formatted_criteria = "\n".join([f"{i+1}. {criterion}" for i, criterion in enumerate(criteria)])
         system_instruction = f'''
@@ -26,9 +26,9 @@ given set of options by carefully considering the decision criteria.
 {formatted_criteria}
 
 # Instructions
-1. Think carefully from first principles and provide the best option based on the context and the decision criteria.
-2. You MUST respond in the given output format.
-3. Your response MUST be a valid JSON.
+1. Think carefully from first principles and provide the best option, based on the context and the decision criteria.
+2. You MUST respond in the given output format. DO NOT include any additional information.
+3. Your response MUST be a valid JSON. DO NOT include an introduction before the JSON.
 
 # Format
 
@@ -38,7 +38,7 @@ Options:
 2. Option 2
 ... (as many as the number of options)
 
-## Output
+## Output -- a valid JSON with the following fields only:
 {{
     "chain_of_thought": (the chain of thought that led to the decision),
     "best_option": (index of the best option)
@@ -50,10 +50,17 @@ Options:
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": f"Options:\n{formatted_options}"}
             ],
-            temperature=0
+            temperature=0.1
         )
-        response_json = json.loads(response.choices[0].message.content)
+        try:
+            response_json = json.loads(response.choices[0].message.content)
+        except Exception as e:
+            self.logger.error(f"Error in parsing decider response: {e}")
+            self.logger.error(f"Response: {response}")
+            return e
         self.logger.debug(f"Response: {response_json}")
+        if with_chain_of_thought:
+            return response_json["best_option"]-1, response_json["chain_of_thought"]
         return response_json["best_option"]-1
 
     # This method should return whether to proceed with an action or not, along with follow-ups if any

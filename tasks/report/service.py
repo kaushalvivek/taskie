@@ -5,33 +5,59 @@ import sys
 import os
 import logging
 import yaml
+import redis
+from datetime import datetime, timedelta
 from typing import List
 from tqdm import tqdm
-from rich import print as rprint
 sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
+from tools.slack import SlackClient
 from models.linear import ProjectStates, Project, ProjectStatus
-from models.report import Reminder, Config
+from models.report import Reminder, Config, Report, RiskUpdate
 from tools.decider import Decider
 from tools.writer import Writer
+
+PROJECT_UPDATE_CUTOFF_DAYS = 4
 
 class Reporter:
     def __init__(self, logger=logging.getLogger(__name__)):
         self.logger = logger
         self.linear = LinearClient(logger)
-        self.decider = Decider(logger=logger)
+        self.decider = Decider(logger=logger, model="gpt-4-turbo")
         with open(f"{os.environ['PROJECT_PATH']}/config/report.yaml", 'r') as file:
             config_data = yaml.safe_load(file)
         self.config = Config(**config_data)
-        self.writer = Writer(logger=logger)
-    
+        self.writer = Writer(logger=logger, model="gpt-4-turbo")
+        self.slack = SlackClient(logger=logger)
+        self.cache = redis.Redis()
+
+    def send_reminder(self):
+        roadmap_id = self.config.roadmap_id
+        current_projects = self._get_projects_for_roadmap(roadmap_id)
+        reminders = self._get_reminders(current_projects)
+        reminder_block = self._get_reminder_block(reminders)
+        self.slack.post_message(blocks=[reminder_block], channel_id=self.config.reporting_channel_id)
+               
     def trigger_report(self):
         roadmap_id = self.config.roadmap_id
+        report = None
+        # if self.cache.get(roadmap_id):
+        #     self.logger.info(f"Report found in cache for roadmap: {roadmap_id}")
+        #     report_data = self.cache.get(roadmap_id)
+        #     report_data_str = report_data.decode('utf-8')
+        #     report = Report.parse_obj(json.loads(report_data_str))
+        # else:
+            # self.logger.info(f"Report not found in cache for roadmap: {roadmap_id}")
         report = self._generate_report(roadmap_id)
+        # self.cache.set(roadmap_id, report.model_dump_json())
         self.logger.info(f"Report generated for roadmap: {roadmap_id}")
         self.logger.debug(f"Report: {report}")
+        slack_message_blocks = self._write_slack_message(report)
+        self.slack.post_message(blocks=slack_message_blocks, channel_id=self.config.reporting_channel_id)
+        self.logger.info(f"Report sent to {self.config.reporting_channel_id}")
+        return
 
-    def _get_project_with_best_update(self, projects: List[Project]) -> Project:
+    def _get_best_update(self, projects: List[Project]) -> Project:
         # ignore all projects by admin, if admin is populated
         if self.config.admin_user_email:
             projects = [project for project in projects if project.lead.email != self.config.admin_user_email]
@@ -40,17 +66,19 @@ class Reporter:
 the respective projects they are leading. Your goal is to identify the project with the best update so that we can \
 highlight it in the report and share it with the team."
         criteria = [
-            "Update clearly articulates the progress made",
-            "Update provides a clear path forward",
+            "Update clearly articulates the progress and decisions made so far",
+            "Update flags risks, if any, to the set timelines and provides a clear path forward",
             "Update reflects on misses, if any, and how they were addressed",
         ]
         options = []
         for project in projects:
                 latest_update = project.project_updates.nodes[0]
                 options.append(f"{project.name} - {latest_update.body}")
-        best_project_index = self.decider.get_best_option(context, options, criteria)
+        best_project_index, chain_of_thought = self.decider.get_best_option(context, options, criteria, with_chain_of_thought=True)
+        
         self.logger.info(f"Best updated project: {projects[best_project_index].name}")
         self.logger.debug(projects[best_project_index].model_dump_json())
+        
         return projects[best_project_index]
 
     def _get_reminders(self, projects: List[Project]) -> List[Reminder]:
@@ -67,48 +95,126 @@ highlight it in the report and share it with the team."
         self.logger.debug(reminders)
         return reminders
 
-    def _write_report(self, projects_with_updates: List[Project], projects_without_updates: List[Project], best_updated_project: Project) -> str:
+    def _get_reminder_block(self, reminders: List[Reminder], intro="Hey team! A gentle reminder to the following folks to add a project update before EOD:"):
+        reminders_text = "\n".join([f"- *{self.slack.get_tag_for_user(reminder.user.email,self.config.domains)}*: {', '.join([project.name for project in reminder.projects])}." for reminder in reminders])
+        block = {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"{intro}\n\n{reminders_text}"
+                }
+            }
+        return block
 
-        report = f'''Out of {len(projects_with_updates) + len(projects_without_updates)} projects, \
-{len(projects_with_updates)} have an update from their leads and {len(projects_without_updates)} are missing an update from their leads.
+    def _write_slack_message(self, report: Report):
+        
+        message_blocks = []
+        
+        message_blocks.append({
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "Project Report",
+                "emoji": True
+            }
+        })
+        
+        message_blocks.append({"type": "divider"})
+        
+        # Introduction Section
+        message_blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"👋 Hi @here, out of <{self.config.roadmap_view_url}|{len(report.projects_with_updates) + len(report.projects_without_updates)} projects>, {len(report.projects_with_updates)} have an update from their leads and {len(report.projects_without_updates)} are missing an update."
+            }
+        })
 
-👑 The best update, according to my infinite elephant wisdom, is on {best_updated_project.name}, added by {best_updated_project.lead.name}. 👑
-'''
-        risky_projects = [project for project in projects_with_updates if project.status is not ProjectStatus.ON_TRACK]
-        if len(risky_projects) > 0:
-            summarizer_input = "\n\n".join([f"{project.name} - {project.project_updates.nodes[0].body}" for project in risky_projects])
-            risk_summary = self.writer.summarize(
-                context='''Project leads have provided updates on projects that are off track, or at risk. Our goal is to write an excellent 
-executive summary of the risk with these projects and emphasise on the WHY by taking insights from the shared update. The output MUST 
-be in bullet points. Be VERY brief. ONLY includ the following bullet points for each project:
-- (Project Name)
-  - why not on track: (a VERY BRIEF reach here)
-  - what next: (a VERY BRIEF summary of what the project lead has shared)
-... and so on, for each project.
+        # Best Update Section
+        if report.best_update:
+            message_blocks.append({
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "✨ Best Update",
+                    "emoji": True
+                }
+            })
+            message_blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"The best update, according to GPT, is on *{report.best_update.name}*, added by *{self.slack.get_tag_for_user(report.best_update.lead.email, self.config.domains)}*. 👏"
+                }
+            })
+        
+        if report.risks:
+            message_blocks.append({
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "👀 Risks",
+                    "emoji": True
+                }
+            })
+            risks_text = "\n\n".join([f"*{risk.project_name}* ({risk.project_milestone}):\n- _why at risk?_: {risk.why}\n- _next steps_: {risk.what_next}" for risk in report.risks])
+            message_blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"There are {len(report.risks)} projects that are at risk. Here's a brief summary:\n\n{risks_text}"
+                }
+            })
+        
+        if report.reminders:
+            message_blocks.append({
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "🔔 Reminders",
+                    "emoji": True
+                }
+            })
+            message_blocks.append(self._get_reminder_block(reminders=report.reminders,
+                intro="The following projects are missing an update from their leads -- a gentle reminder to add one ASAP:"))
+        return message_blocks
+
+    def _get_project_risks(self, projects: List[Project]) -> List[RiskUpdate]:
+        risky_projects = [project for project in projects if project.status is not ProjectStatus.ON_TRACK]
+        self.logger.info(f"Getting risks for {len(risky_projects)} projects")
+        
+        project_risks = []
+        
+        for project in tqdm(risky_projects, desc="Processing risky projects"):
+            risk_update = self.writer.parse(
+                context='''Project leads have provided updates on projects that are off track, or at risk. Our goal is to write an excellent
+executive summary of the risk with these projects and emphasize on the WHY by taking insights from the shared update. The output MUST
+be in the provided output format.
 ''',
-                word_limit=50,
-                input=summarizer_input
+                input=f"{project.name} - {project.project_updates.nodes[0].body}",
+                output_model=RiskUpdate
             )
-            report += f"\n\nThere are some projects that are off track or at risk. Here is a brief summary:\n\n{risk_summary}"
+            self.logger.debug(risk_update)
+            risk_update.project_name = project.name
+            project_risks.append(risk_update)
+        return project_risks
 
-        if len(projects_without_updates) > 0:
+    def _enrich_projects_with_status(self, projects: List[Project]) -> List[Project]:
+        for idx, project in tqdm(enumerate(projects), desc="Updating project statuses"):
+            status_idx = self.decider.get_best_option(
+                context=f'''Project Leads have provided updates on the projects they are leading. Based on the provided updates, you have to figure out 
+what's the best current status for the project. Here are the details about the project:
+{project.model_dump_json()}''', 
+                options=[status.value for status in ProjectStatus],
+                criteria=[
+                    "If the project lead explicitly mentions the project's status, then that's the obvious correct choice.",
+                    "If the lead flags a risk, or a delay, in the project, then the status should be set accordingly.",
+                    "Use the project's latest update to infer the status.",
+                ])
+            projects[idx].status = list(ProjectStatus)[status_idx] 
+        return projects
 
-            reminders = self._get_reminders(projects_without_updates)
-
-            reminder_text = f'''\n\nThere are {len(projects_without_updates)} projects that are missing an update from their leads. 
-A gentle reminder to the following folks to add a project update ASAP:'''
-            
-            for reminder in reminders:
-                reminder_text += f"\n\n{reminder.user.name}:"
-                for project in reminder.projects:
-                    reminder_text += f"\n - {project.name}"
-
-            report += reminder_text
-
-        return report
-
-    def _generate_report(self, roadmap_id: str) -> str:
-        self.logger.info(f"Generating report for roadmap: {roadmap_id}")
+    def _get_projects_for_roadmap(self, roadmap_id: str) -> List[Project]:
         roadmap_projects = self.linear.list_projects_in_roadmap(roadmap_id)
         
         for idx, project in tqdm(enumerate(roadmap_projects), desc="Pulling full projects"):
@@ -119,39 +225,32 @@ A gentle reminder to the following folks to add a project update ASAP:'''
             if project.state in [ProjectStates.PLANNED, ProjectStates.STARTED]:
                 current_projects.append(project)
         self.logger.info(f"{len(current_projects)} projects are in progress or planned")
-        
+        return current_projects
+
+    def _generate_report(self, roadmap_id: str) -> Report:
+        self.logger.info(f"Generating report for roadmap: {roadmap_id}")
+        current_projects = self._get_projects_for_roadmap(roadmap_id)
         
         projects_with_updates, projects_without_updates = [], []
         for project in current_projects:
-            if project.project_updates and len(project.project_updates.nodes) > 0:
+            created_at_timestamp = datetime.strptime(project.project_updates.nodes[0].created_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+            if project.project_updates and \
+                len(project.project_updates.nodes) > 0 and \
+                created_at_timestamp > datetime.now() - timedelta(days=PROJECT_UPDATE_CUTOFF_DAYS):
                 projects_with_updates.append(project)
             else:
                 projects_without_updates.append(project)
         self.logger.info(f"{len(projects_with_updates)} projects with updates, {len(projects_without_updates)} projects without updates")
         
-        if len(projects_with_updates) > 0:
-            best_updated_project = self._get_project_with_best_update(projects_with_updates)
-        else:
-            self.logger.info(f"No projects with updates found")
-            best_updated_project = None
-        
-        for idx, project in tqdm(enumerate(projects_with_updates), desc="Updating project statuses"):
-            status_idx = self.decider.get_best_option(
-                context=f'''Project Leads have provided updates on the projects they are leading. Based on the provided updates, you have to figure out 
-what's the best current status for the project. Here are the details about the project:
-{project.model_dump_json()}''', 
-                options=[status.value for status in ProjectStatus],
-                criteria=[
-                    "If the project lead explicitly mentions the project's status, then that's the obvious correct choice.",
-                    "If the project flags a risk or delay, in the project, then the status should be flagged accordingly.",
-                    "Use the project's latest update to infer the status.",
-                ]
-                )
-            projects_with_updates[idx].status = list(ProjectStatus)[status_idx]
+        projects_with_updates = self._enrich_projects_with_status(projects_with_updates)
 
-        report = self._write_report(projects_with_updates, projects_without_updates, best_updated_project)
-        self.logger.info(f"\n\nReport: {report}")
-        return report
+        return Report(
+            reminders=self._get_reminders(projects_without_updates),
+            best_update=self._get_best_update(projects_with_updates),
+            risks=self._get_project_risks(projects_with_updates),
+            projects_with_updates=projects_with_updates,
+            projects_without_updates=projects_without_updates
+        )
 
     def _get_current_projects(self) -> List[Project]:
         projects = self.linear.list_projects()
@@ -165,6 +264,4 @@ what's the best current status for the project. Here are the details about the p
                     break
             
         return current_projects
-    
-    def _send_report(self):
-        raise NotImplementedError("Service not implemented yet")
+

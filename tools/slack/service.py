@@ -1,7 +1,8 @@
 import os
 import sys
 import logging
-from rich import print as rprint
+import redis
+from ratelimit import limits, sleep_and_retry
 sys.path.append(os.environ['PROJECT_PATH'])
 from models.slack import Message
 from slack_sdk import WebClient
@@ -10,9 +11,13 @@ class SlackClient:
     def __init__(self, logger=logging.getLogger(__name__)):
         self.logger = logger
         self.client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
+        self.cache = redis.Redis()
     
-    def post_message(self, channel_id: str, message: str):
-        self.client.chat_postMessage(channel=channel_id, text=message)
+    def post_message(self, channel_id: str, message=None, blocks=None):
+        if message:
+            self.client.chat_postMessage(channel=channel_id, text=message)
+        elif blocks:
+            self.client.chat_postMessage(channel=channel_id, blocks=blocks, mrkdwn=True, link_names=True)
         
     def reply_in_thread(self, channel_id: str, message: str, thread_ts: float):
         print(f"Replying in thread {thread_ts}")
@@ -43,3 +48,19 @@ class SlackClient:
             message= Message.get_message_from_event(message)
             message.channel_id = channel_id # set channel_id as it is not present in the response
         return message
+
+    def get_tag_for_user(self, email: str, domains: [str]) -> str:
+        user_name = email.split('@')[0]
+        options = []
+        for domain in domains:
+            options.append(f"{user_name}@{domain}")
+        
+        for option in options:
+            try:
+                response = self.client.users_lookupByEmail(email=option)
+                if response["ok"] and response["user"] is not None:
+                    return f"<@{response['user']['id']}>"
+            except Exception as e:
+                continue
+        
+        return user_name
