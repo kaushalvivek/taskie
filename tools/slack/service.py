@@ -5,6 +5,7 @@ import redis
 from ratelimit import limits, sleep_and_retry
 sys.path.append(os.environ['PROJECT_PATH'])
 from models.slack import Message
+from models.report import EmailConfig
 from slack_sdk import WebClient
 
 class SlackClient:
@@ -49,11 +50,18 @@ class SlackClient:
             message.channel_id = channel_id # set channel_id as it is not present in the response
         return message
 
-    def get_tag_for_user(self, email: str, domains: [str]) -> str:
+    def get_tag_for_user(self, email: str, email_config: EmailConfig) -> str:
         user_name = email.split('@')[0]
         options = []
-        for domain in domains:
+
+        for domain in email_config.domains:
             options.append(f"{user_name}@{domain}")
+
+        for suffix in email_config.suffixes:
+            if user_name.endswith(suffix):
+                stripped_user_name = user_name[:-len(suffix)]
+                for domain in email_config.domains:
+                    options.append(f"{stripped_user_name}@{domain}")
         
         for option in options:
             try:

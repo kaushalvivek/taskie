@@ -96,7 +96,7 @@ highlight it in the report and share it with the team."
         return reminders
 
     def _get_reminder_block(self, reminders: List[Reminder], intro="Hey team! A gentle reminder to the following folks to add a project update before EOD:"):
-        reminders_text = "\n".join([f"- *{self.slack.get_tag_for_user(reminder.user.email,self.config.domains)}*: {', '.join([project.name for project in reminder.projects])}." for reminder in reminders])
+        reminders_text = "\n".join([f"- *{self.slack.get_tag_for_user(reminder.user.email,self.config.email)}*: {', '.join([project.name for project in reminder.projects])}." for reminder in reminders])
         block = {
                 "type": "section",
                 "text": {
@@ -144,7 +144,7 @@ highlight it in the report and share it with the team."
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"The best update, according to GPT, is on *{report.best_update.name}*, added by *{self.slack.get_tag_for_user(report.best_update.lead.email, self.config.domains)}*. 👏"
+                    "text": f"The best update, according to GPT, is on *{report.best_update.name}*, added by *{self.slack.get_tag_for_user(report.best_update.lead.email, self.config.email)}*. 👏"
                 }
             })
         
