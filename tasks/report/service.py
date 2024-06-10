@@ -233,13 +233,20 @@ what's the best current status for the project. Here are the details about the p
         
         projects_with_updates, projects_without_updates = [], []
         for project in current_projects:
+            if not project.project_updates or len(project.project_updates.nodes) == 0:
+                projects_without_updates.append(project)
+                continue
+            
             created_at_timestamp = datetime.strptime(project.project_updates.nodes[0].created_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+            
             if project.project_updates and \
                 len(project.project_updates.nodes) > 0 and \
                 created_at_timestamp > datetime.now() - timedelta(days=PROJECT_UPDATE_CUTOFF_DAYS):
                 projects_with_updates.append(project)
+                
             else:
                 projects_without_updates.append(project)
+                
         self.logger.info(f"{len(projects_with_updates)} projects with updates, {len(projects_without_updates)} projects without updates")
         
         projects_with_updates = self._enrich_projects_with_status(projects_with_updates)
