@@ -14,7 +14,6 @@ class ReminderType(Enum):
 class Reminder(BaseModel):
     user: User
     projects: list[Project]
-    type: ReminderType
 
 class RiskUpdate(BaseModel):
     project_name: str = Field(None, description="Name of the project")

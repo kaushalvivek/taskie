@@ -38,7 +38,7 @@ class Reporter:
         if type == ReminderType.UPDATE:
             reminder_block = self._get_reminder_block(reminders=reminders, intro="Hey team! A gentle reminder to the following folks to add a project update before EOD:")
         if type == ReminderType.PLANNING:
-            reminder_block = self._get_reminder_block(reminders=reminders, intro="Hey team! A gentle reminder to the following folks to update the project milestones today, for sprint planning:")
+            reminder_block = self._get_reminder_block(reminders=reminders, intro="Hey team! A gentle reminder to the following folks to update/add new project milestones today, for next sprint's planning:")
         self.slack.post_message(blocks=[reminder_block], channel_id=self.config.reporting_channel_id)
                
     def trigger_report(self):
