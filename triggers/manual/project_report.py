@@ -3,6 +3,7 @@ import os
 import logging
 sys.path.append(os.environ['PROJECT_PATH'])
 from tasks.report import Reporter
+from models.report import ReminderType
 
 def send_reminder():
     # This is a placeholder for the actual reminder sending logic
@@ -20,8 +21,10 @@ reporter = Reporter(logger=logger)
 if len(sys.argv) > 1:
     if sys.argv[1] == "trigger-report":
         reporter.trigger_report()
-    elif sys.argv[1] == "send-reminder":
-        reporter.send_reminder()
+    elif sys.argv[1] == "send-update-reminder":
+        reporter.send_reminder(type=ReminderType.UPDATE)
+    elif sys.argv[1] == "send-planning-reminder":
+        reporter.send_reminder(type=ReminderType.PLANNING)
     else:
         print("Invalid argument. Please use 'trigger-report' or 'send-reminder'.")
 else:

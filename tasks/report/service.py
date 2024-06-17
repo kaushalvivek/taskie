@@ -13,7 +13,7 @@ sys.path.append(os.environ['PROJECT_PATH'])
 from tools.linear import LinearClient
 from tools.slack import SlackClient
 from models.linear import ProjectStates, Project, ProjectStatus
-from models.report import Reminder, Config, Report, RiskUpdate
+from models.report import Reminder, Config, Report, RiskUpdate, ReminderType
 from tools.decider import Decider
 from tools.writer import Writer
 
@@ -31,11 +31,14 @@ class Reporter:
         self.slack = SlackClient(logger=logger)
         self.cache = redis.Redis()
 
-    def send_reminder(self):
+    def send_reminder(self, type: ReminderType):
         roadmap_id = self.config.roadmap_id
         current_projects = self._get_projects_for_roadmap(roadmap_id)
         reminders = self._get_reminders(current_projects)
-        reminder_block = self._get_reminder_block(reminders)
+        if type == ReminderType.UPDATE:
+            reminder_block = self._get_reminder_block(reminders=reminders, intro="Hey team! A gentle reminder to the following folks to add a project update before EOD:")
+        if type == ReminderType.PLANNING:
+            reminder_block = self._get_reminder_block(reminders=reminders, intro="Hey team! A gentle reminder to the following folks to update the project milestones today, for sprint planning:")
         self.slack.post_message(blocks=[reminder_block], channel_id=self.config.reporting_channel_id)
                
     def trigger_report(self):
@@ -95,7 +98,7 @@ highlight it in the report and share it with the team."
         self.logger.debug(reminders)
         return reminders
 
-    def _get_reminder_block(self, reminders: List[Reminder], intro="Hey team! A gentle reminder to the following folks to add a project update before EOD:"):
+    def _get_reminder_block(self, reminders: List[Reminder], intro:str):
         reminders_text = "\n".join([f"- *{self.slack.get_tag_for_user(reminder.user.email,self.config.email)}*: {', '.join([project.name for project in reminder.projects])}." for reminder in reminders])
         block = {
                 "type": "section",

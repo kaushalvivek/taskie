@@ -2,13 +2,19 @@ import sys
 import os
 from pydantic import BaseModel
 from pydantic.fields import Field
+from enum import Enum
 from typing import Optional
 sys.path.append(os.environ['PROJECT_PATH'])
 from models.linear import Project, User
 
+class ReminderType(Enum):
+    UPDATE = "update"
+    PLANNING = "planning"
+
 class Reminder(BaseModel):
     user: User
     projects: list[Project]
+    type: ReminderType
 
 class RiskUpdate(BaseModel):
     project_name: str = Field(None, description="Name of the project")
