@@ -32,8 +32,7 @@ class Reporter:
         self.cache = redis.Redis()
 
     def send_reminder(self, type: ReminderType):
-        roadmap_id = self.config.roadmap_id
-        current_projects = self._get_projects_for_roadmap(roadmap_id)
+        current_projects = self._get_current_projects()
         reminders = self._get_reminders(current_projects)
         if type == ReminderType.UPDATE:
             reminder_block = self._get_reminder_block(reminders=reminders, intro="Hey team! A gentle reminder to the following folks to add a project update before EOD:")
@@ -42,18 +41,8 @@ class Reporter:
         self.slack.post_message(blocks=[reminder_block], channel_id=self.config.reporting_channel_id)
                
     def trigger_report(self):
-        roadmap_id = self.config.roadmap_id
         report = None
-        # if self.cache.get(roadmap_id):
-        #     self.logger.info(f"Report found in cache for roadmap: {roadmap_id}")
-        #     report_data = self.cache.get(roadmap_id)
-        #     report_data_str = report_data.decode('utf-8')
-        #     report = Report.parse_obj(json.loads(report_data_str))
-        # else:
-            # self.logger.info(f"Report not found in cache for roadmap: {roadmap_id}")
-        report = self._generate_report(roadmap_id)
-        # self.cache.set(roadmap_id, report.model_dump_json())
-        self.logger.info(f"Report generated for roadmap: {roadmap_id}")
+        report = self._generate_report()
         self.logger.debug(f"Report: {report}")
         slack_message_blocks = self._write_slack_message(report)
         self.slack.post_message(blocks=slack_message_blocks, channel_id=self.config.reporting_channel_id)
@@ -217,22 +206,9 @@ what's the best current status for the project. Here are the details about the p
             projects[idx].status = list(ProjectStatus)[status_idx] 
         return projects
 
-    def _get_projects_for_roadmap(self, roadmap_id: str) -> List[Project]:
-        roadmap_projects = self.linear.list_projects_in_roadmap(roadmap_id)
-        
-        for idx, project in tqdm(enumerate(roadmap_projects), desc="Pulling full projects"):
-            roadmap_projects[idx] = self.linear.get_project_by_id(project.id)
-        
-        current_projects = []
-        for project in roadmap_projects:
-            if project.state in [ProjectStates.PLANNED, ProjectStates.STARTED]:
-                current_projects.append(project)
-        self.logger.info(f"{len(current_projects)} projects are in progress or planned")
-        return current_projects
-
-    def _generate_report(self, roadmap_id: str) -> Report:
-        self.logger.info(f"Generating report for roadmap: {roadmap_id}")
-        current_projects = self._get_projects_for_roadmap(roadmap_id)
+    def _generate_report(self) -> Report:
+        self.logger.info(f"Generating report ...")
+        current_projects = self._get_current_projects()
         
         projects_with_updates, projects_without_updates = [], []
         for project in current_projects:
