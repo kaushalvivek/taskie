@@ -169,6 +169,17 @@ highlight it in the report and share it with the team."
             })
             message_blocks.append(self._get_reminder_block(reminders=report.reminders,
                 intro="The following projects are missing an update from their leads -- a gentle reminder to add one ASAP:"))
+        cc_user_id = self.config.reporting_cc
+        if cc_user_id:
+            message_blocks.append({
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"CC: <@{cc_user_id}>"
+                    }
+                ]
+            })
         return message_blocks
 
     def _get_project_risks(self, projects: List[Project]) -> List[RiskUpdate]:

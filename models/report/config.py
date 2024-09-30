@@ -6,6 +6,7 @@ class EmailConfig(BaseModel):
 
 class Config(BaseModel):
     admin_user_email: str = None
+    reporting_cc: str = None
     reporting_channel_id: str
     roadmap_view_url: str
     email: EmailConfig
