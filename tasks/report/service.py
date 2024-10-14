@@ -17,7 +17,7 @@ from models.report import Reminder, Config, Report, RiskUpdate, ReminderType
 from tools.decider import Decider
 from tools.writer import Writer
 
-PROJECT_UPDATE_CUTOFF_DAYS = 4
+PROJECT_UPDATE_CUTOFF_DAYS = 5
 
 class Reporter:
     def __init__(self, logger=logging.getLogger(__name__)):
