@@ -51,6 +51,10 @@ class SlackClient:
         return message
 
     def get_tag_for_user(self, email: str, email_config: EmailConfig) -> str:
+        
+        if email in email_config.mappings:
+            return f"<@{email_config.mappings[email]}>"
+        
         user_name = email.split('@')[0]
         options = []
 

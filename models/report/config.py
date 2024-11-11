@@ -3,6 +3,7 @@ from pydantic import BaseModel
 class EmailConfig(BaseModel):
     domains: list[str]
     suffixes: list[str]
+    mappings: dict[str, str]
 
 class Config(BaseModel):
     admin_user_email: str = None
