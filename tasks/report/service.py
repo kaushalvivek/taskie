@@ -23,11 +23,11 @@ class Reporter:
     def __init__(self, logger=logging.getLogger(__name__)):
         self.logger = logger
         self.linear = LinearClient(logger)
-        self.decider = Decider(logger=logger, model="gpt-4-turbo")
+        self.decider = Decider(logger=logger, model="gpt-4o")
         with open(f"{os.environ['PROJECT_PATH']}/config/report.yaml", 'r') as file:
             config_data = yaml.safe_load(file)
         self.config = Config(**config_data)
-        self.writer = Writer(logger=logger, model="gpt-4-turbo")
+        self.writer = Writer(logger=logger, model="gpt-4o")
         self.slack = SlackClient(logger=logger)
         self.cache = redis.Redis()
 
@@ -251,7 +251,7 @@ what's the best current status for the project. Here are the details about the p
 
     def _get_current_projects(self) -> List[Project]:
         projects = self.linear.list_projects()
-        projects = [project for project in projects if project.state in [ProjectStates.PLANNED, ProjectStates.STARTED]]
+        projects = [project for project in projects if project.state in [ProjectStates.STARTED]]
         current_projects = []
         for project in tqdm(projects):
             fetched_project = self.linear.get_project_by_id(project.id)
